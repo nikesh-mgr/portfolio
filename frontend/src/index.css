@@ -1,0 +1,371 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@import "highlight.js/styles/github-dark.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =========================================================
+   PORTFOLIO DESIGN SYSTEM
+   Premium • Minimal • Technical • Professional
+   ========================================================= */
+
+:root {
+  /* ---------- Base ---------- */
+  --background: oklch(0.985 0.002 260);
+  --foreground: oklch(0.145 0.015 260);
+
+  /* ---------- Brand ---------- */
+  --primary: oklch(0.52 0.16 166);
+  --primary-foreground: oklch(0.985 0.002 260);
+
+  /* ---------- Secondary ---------- */
+  --secondary: oklch(0.94 0.015 260);
+  --secondary-foreground: oklch(0.2 0.015 260);
+
+  /* ---------- Muted ---------- */
+  --muted: oklch(0.95 0.008 260);
+  --muted-foreground: oklch(0.48 0.015 260);
+
+  /* ---------- Surfaces ---------- */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0.015 260);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0.015 260);
+
+  /* ---------- Accent ---------- */
+  --accent: oklch(0.94 0.025 166);
+  --accent-foreground: oklch(0.2 0.04 166);
+
+  /* ---------- Borders ---------- */
+  --border: oklch(0.89 0.012 260);
+  --input: oklch(0.89 0.012 260);
+  --ring: oklch(0.52 0.16 166);
+
+  /* ---------- Status ---------- */
+  --destructive: oklch(0.58 0.22 25);
+
+  /* ---------- Charts ---------- */
+  --chart-1: oklch(0.52 0.16 166);
+  --chart-2: oklch(0.62 0.13 195);
+  --chart-3: oklch(0.55 0.18 285);
+  --chart-4: oklch(0.68 0.16 80);
+  --chart-5: oklch(0.62 0.19 35);
+
+  /* ---------- Sidebar ---------- */
+  --sidebar: oklch(0.98 0.003 260);
+  --sidebar-foreground: oklch(0.145 0.015 260);
+
+  --sidebar-primary: oklch(0.52 0.16 166);
+  --sidebar-primary-foreground: oklch(0.985 0.002 260);
+
+  --sidebar-accent: oklch(0.94 0.025 166);
+  --sidebar-accent-foreground: oklch(0.2 0.04 166);
+
+  --sidebar-border: oklch(0.89 0.012 260);
+  --sidebar-ring: oklch(0.52 0.16 166);
+
+  /* ---------- Radius ---------- */
+  --radius: 0.75rem;
+}
+
+/* =========================================================
+   DARK THEME
+   ========================================================= */
+
+.dark {
+  /* ---------- Base ---------- */
+  --background: oklch(0.115 0.012 260);
+  --foreground: oklch(0.96 0.005 260);
+
+  /* ---------- Brand ---------- */
+  --primary: oklch(0.7 0.15 166);
+  --primary-foreground: oklch(0.12 0.02 260);
+
+  /* ---------- Secondary ---------- */
+  --secondary: oklch(0.2 0.015 260);
+  --secondary-foreground: oklch(0.94 0.005 260);
+
+  /* ---------- Muted ---------- */
+  --muted: oklch(0.19 0.012 260);
+  --muted-foreground: oklch(0.68 0.012 260);
+
+  /* ---------- Surfaces ---------- */
+  --card: oklch(0.145 0.012 260);
+  --card-foreground: oklch(0.96 0.005 260);
+
+  --popover: oklch(0.16 0.012 260);
+  --popover-foreground: oklch(0.96 0.005 260);
+
+  /* ---------- Accent ---------- */
+  --accent: oklch(0.21 0.025 166);
+  --accent-foreground: oklch(0.85 0.08 166);
+
+  /* ---------- Borders ---------- */
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.7 0.15 166);
+
+  /* ---------- Status ---------- */
+  --destructive: oklch(0.68 0.19 25);
+
+  /* ---------- Charts ---------- */
+  --chart-1: oklch(0.7 0.15 166);
+  --chart-2: oklch(0.72 0.13 195);
+  --chart-3: oklch(0.68 0.18 285);
+  --chart-4: oklch(0.75 0.16 80);
+  --chart-5: oklch(0.7 0.19 35);
+
+  /* ---------- Sidebar ---------- */
+  --sidebar: oklch(0.13 0.012 260);
+  --sidebar-foreground: oklch(0.96 0.005 260);
+
+  --sidebar-primary: oklch(0.7 0.15 166);
+  --sidebar-primary-foreground: oklch(0.12 0.02 260);
+
+  --sidebar-accent: oklch(0.21 0.025 166);
+  --sidebar-accent-foreground: oklch(0.85 0.08 166);
+
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.7 0.15 166);
+}
+
+/* =========================================================
+   TAILWIND THEME MAPPING
+   ========================================================= */
+
+@theme inline {
+  /* ---------- Colors ---------- */
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-destructive: var(--destructive);
+
+  /* ---------- Sidebar ---------- */
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ---------- Charts ---------- */
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* ---------- Typography ---------- */
+
+  --font-sans:
+    "Geist Variable", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --font-heading: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+
+  /* ---------- Radius ---------- */
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+/* =========================================================
+   GLOBAL BASE STYLES
+   ========================================================= */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    @apply font-sans;
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+
+    @apply bg-background text-foreground font-sans;
+
+    font-family:
+      "Geist Variable",
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    text-rendering: optimizeLegibility;
+  }
+
+  button,
+  a {
+    outline: none;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  img,
+  svg {
+    display: block;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+}
+
+/* =========================================================
+   PORTFOLIO UTILITIES
+   ========================================================= */
+
+@layer utilities {
+  .container-page {
+    width: 100%;
+    max-width: 1280px;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================
+   Article Content Styles
+   ========================================================= */
+
+.prose-custom strong {
+  color: var(--foreground);
+  font-weight: 650;
+}
+
+.prose-custom em {
+  color: var(--foreground);
+}
+
+.prose-custom hr {
+  margin-block: 3rem;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.prose-custom pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.prose-custom a {
+  overflow-wrap: anywhere;
+}
+
+.prose-custom img {
+  display: block;
+  margin-inline: auto;
+}
+
+.prose-custom table {
+  border-spacing: 0;
+}
+
+.prose-custom th:last-child,
+.prose-custom td:last-child {
+  border-right: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prose-custom * {
+    scroll-behavior: auto !important;
+  }
+}
