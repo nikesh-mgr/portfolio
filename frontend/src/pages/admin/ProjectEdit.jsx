@@ -25,16 +25,10 @@ const ProjectEdit = () => {
     mutationFn: updateProject,
 
     onSuccess: async (response) => {
-      /*
-       * Refresh the individual project cache.
-       */
       await queryClient.invalidateQueries({
         queryKey: ["project", id],
       });
 
-      /*
-       * Refresh the projects list.
-       */
       await queryClient.invalidateQueries({
         queryKey: ["projects"],
       });
@@ -68,20 +62,17 @@ const ProjectEdit = () => {
     const payload = new FormData();
 
     /*
-     * Basic information
+     * Basic project information.
      */
     payload.append("title", values.title.trim());
-
     payload.append("shortDescription", values.shortDescription.trim());
-
     payload.append("description", values.description.trim());
-
     payload.append("category", values.category.trim());
 
     /*
-     * Technologies
+     * Technologies.
      *
-     * Backend should receive:
+     * FormData sends each technology as a separate field:
      *
      * technologies=React
      * technologies=Node.js
@@ -96,47 +87,42 @@ const ProjectEdit = () => {
     });
 
     /*
-     * Optional URLs
+     * Optional GitHub URL.
      */
     if (values.githubUrl?.trim()) {
       payload.append("githubUrl", values.githubUrl.trim());
-    } else {
-      payload.append("githubUrl", "");
-    }
-
-    if (values.liveUrl?.trim()) {
-      payload.append("liveUrl", values.liveUrl.trim());
-    } else {
-      payload.append("liveUrl", "");
     }
 
     /*
-     * Boolean
+     * Optional live project URL.
+     */
+    if (values.liveUrl?.trim()) {
+      payload.append("liveUrl", values.liveUrl.trim());
+    }
+
+    /*
+     * Featured status.
+     *
+     * All projects are published by default, so there is
+     * intentionally NO `published` field here.
      */
     payload.append("featured", String(values.featured));
 
     /*
-     * Project status
+     * Project development status.
      */
     payload.append("status", values.status);
 
     /*
-     * Display order
+     * Display order.
      */
     payload.append("order", String(values.order));
 
     /*
-     * Image
+     * Primary image.
      *
-     * IMPORTANT:
-     *
-     * Existing image = URL string
-     * New image = File
-     *
-     * Only send the File.
-     *
-     * If no new image was selected, backend keeps
-     * the existing image.
+     * Only upload a file when the user selected a new image.
+     * Otherwise, the backend keeps the existing image.
      */
     if (values.image instanceof File) {
       payload.append("image", values.image);
@@ -149,7 +135,7 @@ const ProjectEdit = () => {
   };
 
   /*
-   * Loading
+   * Loading state.
    */
   if (projectQuery.isLoading) {
     return (
@@ -160,7 +146,7 @@ const ProjectEdit = () => {
   }
 
   /*
-   * Error
+   * Error state.
    */
   if (projectQuery.isError) {
     return (
@@ -195,11 +181,11 @@ const ProjectEdit = () => {
   }
 
   /*
-   * Backend response can be:
+   * Support both response shapes:
    *
    * { project: {...} }
    *
-   * or
+   * and
    *
    * {...project}
    */
@@ -232,7 +218,6 @@ const ProjectEdit = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <AdminPageHeader
         title="Edit project"
         description={`Update ${project.title || "project"} information.`}
@@ -248,7 +233,6 @@ const ProjectEdit = () => {
         }
       />
 
-      {/* Project Form */}
       <ProjectForm
         initialValues={project}
         onSubmit={handleSubmit}
@@ -256,7 +240,6 @@ const ProjectEdit = () => {
         submitLabel="Save changes"
       />
 
-      {/* Gallery */}
       <ProjectGallery
         projectId={id}
         images={project.images || []}

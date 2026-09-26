@@ -1,121 +1,178 @@
-import { useEffect, useRef, useState } from "react";
-
 import { ImagePlus, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const CertificateImageUploader = ({
   existingUrl = null,
-  value,
   onChange,
   disabled = false,
 }) => {
   const inputRef = useRef(null);
 
-  const [preview, setPreview] = useState(existingUrl);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [imageError, setImageError] = useState("");
 
+  /*
+   * Create a temporary preview URL for a newly selected image.
+   *
+   * The previous object URL is revoked before replacing it to prevent
+   * unnecessary memory usage.
+   */
   useEffect(() => {
-    if (value) {
-      const objectUrl = URL.createObjectURL(value);
+    return () => {
+      if (previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
-      setPreview(objectUrl);
+  const displayUrl = previewUrl || existingUrl;
 
-      return () => {
-        URL.revokeObjectURL(objectUrl);
-      };
+  const resetInput = () => {
+    if (inputRef.current) {
+      inputRef.current.value = "";
     }
-
-    setPreview(existingUrl || null);
-  }, [value, existingUrl]);
+  };
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
 
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      onChange?.(null, "Only JPEG, PNG, and WebP images are allowed");
+    setImageError("");
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError("Please select a JPEG, PNG, or WebP image.");
+
+      resetInput();
+
+      onChange?.(null, "Please select a JPEG, PNG, or WebP image.", false);
+
       return;
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      onChange?.(null, "Image must be smaller than 5 MB");
+      setImageError("Image size must not exceed 5MB.");
+
+      resetInput();
+
+      onChange?.(null, "Image size must not exceed 5MB.", false);
+
       return;
     }
 
-    onChange?.(file, null);
+    /*
+     * The parent form now has a valid replacement image.
+     */
+    const objectUrl = URL.createObjectURL(file);
+
+    setPreviewUrl(objectUrl);
+    setImageError("");
+
+    onChange?.(file, null, false);
   };
 
   const handleRemove = () => {
-    onChange?.(null, null, true);
+    setImageError("");
+    setPreviewUrl(null);
+    resetInput();
 
-    if (inputRef.current) {
-      inputRef.current.value = "";
+    /*
+     * `remove = true` tells the parent that an existing image should
+     * be deleted rather than simply leaving the current image unchanged.
+     */
+    onChange?.(null, null, true);
+  };
+
+  const handleUploadClick = () => {
+    if (disabled) {
+      return;
     }
 
-    setPreview(null);
+    inputRef.current?.click();
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium">Certificate Image</h3>
+          <p className="text-sm font-medium">Certificate Image</p>
 
           <p className="text-xs text-muted-foreground">
-            JPEG, PNG or WebP · Maximum 5 MB
+            JPEG, PNG, or WebP · Maximum 5MB
           </p>
         </div>
-      </div>
 
-      {preview ? (
-        <div className="relative overflow-hidden rounded-xl border bg-muted/20">
-          <img
-            src={preview}
-            alt="Certificate preview"
-            className="aspect-video w-full object-contain"
-          />
-
+        {displayUrl && (
           <button
             type="button"
             onClick={handleRemove}
             disabled={disabled}
-            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-background/90 text-destructive shadow-sm transition hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50"
             aria-label="Remove certificate image"
           >
             <Trash2 className="h-4 w-4" />
+            Remove
           </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => inputRef.current?.click()}
-          className="flex min-h-48 w-full flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 px-6 py-8 text-center transition hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border bg-background">
-            <ImagePlus className="h-5 w-5" />
+        )}
+      </div>
+
+      <div
+        className="overflow-hidden rounded-xl border bg-muted/20"
+        aria-describedby={imageError ? "certificate-image-error" : undefined}
+      >
+        {displayUrl ? (
+          <div className="relative flex min-h-64 items-center justify-center p-4">
+            <img
+              src={displayUrl}
+              alt="Certificate preview"
+              className="max-h-80 w-full object-contain"
+            />
           </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleUploadClick}
+            disabled={disabled}
+            className="flex min-h-64 w-full flex-col items-center justify-center gap-3 p-6 text-center transition-colors hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-50"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border bg-background">
+              <ImagePlus
+                className="h-5 w-5 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </div>
 
-          <span className="text-sm font-medium">Upload certificate image</span>
+            <div>
+              <p className="text-sm font-medium">Upload certificate image</p>
 
-          <span className="mt-1 text-xs text-muted-foreground">
-            Click to select an image
-          </span>
-        </button>
-      )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Click to select an image
+              </p>
+            </div>
 
-      {!preview && (
+            <span className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              Choose image
+            </span>
+          </button>
+        )}
+      </div>
+
+      {displayUrl && (
         <button
           type="button"
+          onClick={handleUploadClick}
           disabled={disabled}
-          onClick={() => inputRef.current?.click()}
-          className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
         >
-          <Upload className="h-4 w-4" />
-          Choose image
+          <Upload className="h-4 w-4" aria-hidden="true" />
+          Replace image
         </button>
       )}
 
@@ -125,8 +182,19 @@ const CertificateImageUploader = ({
         accept="image/jpeg,image/png,image/webp"
         onChange={handleFileChange}
         disabled={disabled}
-        className="hidden"
+        className="sr-only"
+        aria-label="Choose certificate image"
       />
+
+      {imageError && (
+        <p
+          id="certificate-image-error"
+          role="alert"
+          className="text-sm text-destructive"
+        >
+          {imageError}
+        </p>
+      )}
     </div>
   );
 };

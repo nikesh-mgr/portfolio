@@ -2,6 +2,15 @@ import nodemailer from "nodemailer";
 
 import env from "./env.js";
 
+/*
+|--------------------------------------------------------------------------
+| Nodemailer Transporter
+|--------------------------------------------------------------------------
+ *
+ * SMTP credentials remain on the backend and are never sent
+ * to the frontend.
+ */
+
 const transporter = nodemailer.createTransport({
   host: env.EMAIL.HOST,
   port: env.EMAIL.PORT,

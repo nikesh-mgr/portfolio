@@ -1,8 +1,8 @@
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,62 +21,87 @@ import { Textarea } from "@/components/ui/textarea";
 import ProjectImageUpload from "./ProjectImageUpload";
 import TechnologyInput from "./TechnologyInput";
 
+/*
+|--------------------------------------------------------------------------
+| URL validation
+|--------------------------------------------------------------------------
+*/
+
+const urlSchema = z
+  .string()
+  .trim()
+  .url("Please provide a valid URL")
+  .refine(
+    (value) => value.startsWith("http://") || value.startsWith("https://"),
+    {
+      message: "URL must use HTTP or HTTPS",
+    },
+  );
+
+const optionalUrlSchema = z.union([urlSchema, z.literal("")]).optional();
+
+/*
+|--------------------------------------------------------------------------
+| Project validation schema
+|--------------------------------------------------------------------------
+|
+| All projects are considered published.
+| There is no `published` field anymore.
+|
+*/
+
 const projectSchema = z.object({
   title: z
     .string()
     .trim()
-    .min(2, "Title must be at least 2 characters")
-    .max(100, "Title must not exceed 100 characters"),
+    .min(2, "Project title must be at least 2 characters")
+    .max(100, "Project title cannot exceed 100 characters"),
 
   shortDescription: z
     .string()
     .trim()
     .min(1, "Short description is required")
-    .max(250, "Short description must not exceed 250 characters"),
+    .max(250, "Short description cannot exceed 250 characters"),
 
   description: z
     .string()
     .trim()
-    .min(1, "Description is required")
-    .max(5000, "Description must not exceed 5000 characters"),
+    .min(1, "Project description is required")
+    .max(5000, "Project description cannot exceed 5000 characters"),
 
   technologies: z
     .array(z.string().trim().min(1, "Technology cannot be empty"))
-    .min(1, "Add at least one technology"),
+    .min(1, "At least one technology is required"),
 
   category: z
     .string()
     .trim()
-    .min(1, "Category is required")
-    .max(50, "Category must not exceed 50 characters"),
+    .min(1, "Project category is required")
+    .max(50, "Category cannot exceed 50 characters"),
 
-  image: z
-    .union([z.instanceof(File), z.string(), z.null()])
-    .optional(),
+  image: z.union([z.instanceof(File), z.string(), z.null()]).optional(),
 
-  githubUrl: z
-    .union([
-      z.string().url("Enter a valid GitHub URL"),
-      z.literal(""),
-    ])
-    .optional(),
+  githubUrl: optionalUrlSchema,
 
-  liveUrl: z
-    .union([
-      z.string().url("Enter a valid live URL"),
-      z.literal(""),
-    ])
-    .optional(),
+  liveUrl: optionalUrlSchema,
 
   featured: z.boolean(),
 
-  status: z.enum(["completed", "in-progress", "planned"]),
+  status: z.enum(["completed", "in-progress", "planned"], {
+    message: "Please select a valid project status",
+  }),
 
   order: z
     .number()
     .int("Order must be a whole number")
     .min(0, "Order cannot be negative"),
 });
+
+/*
+|--------------------------------------------------------------------------
+| Project Form
+|--------------------------------------------------------------------------
+*/
 
 const ProjectForm = ({
   initialValues,
@@ -101,6 +126,12 @@ const ProjectForm = ({
       order: 0,
     },
   });
+
+  /*
+  |--------------------------------------------------------------------------
+  | Populate form when editing an existing project
+  |--------------------------------------------------------------------------
+  */
 
   useEffect(() => {
     if (!initialValues) {
@@ -142,22 +173,49 @@ const ProjectForm = ({
     });
   }, [initialValues, form]);
 
+  /*
+  |--------------------------------------------------------------------------
+  | Submit
+  |--------------------------------------------------------------------------
+  */
+
   const handleSubmit = (values) => {
-    onSubmit(values);
+    onSubmit?.(values);
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Validation error handling
+  |--------------------------------------------------------------------------
+  */
+
+  const handleInvalid = (errors) => {
+    console.error("PROJECT VALIDATION FAILED:", errors);
+
+    const firstError = Object.values(errors)[0];
+
+    const message =
+      firstError?.message || "Please fix the validation errors and try again.";
+
+    toast.error(message);
+
+    const firstErrorField = Object.keys(errors)[0];
+
+    if (firstErrorField) {
+      form.setFocus(firstErrorField);
+    }
   };
 
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(handleSubmit)}
+        onSubmit={form.handleSubmit(handleSubmit, handleInvalid)}
         className="space-y-8"
       >
         {/* Basic Information */}
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
-            <h2 className="text-lg font-semibold">
-              Basic information
-            </h2>
+            <h2 className="text-lg font-semibold">Basic information</h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
               Core information visitors will see about this project.
@@ -208,8 +266,7 @@ const ProjectForm = ({
                   </FormControl>
 
                   <FormDescription>
-                    Keep this short. It is used in project cards
-                    and previews.
+                    Keep this short. It is used in project cards and previews.
                   </FormDescription>
 
                   <FormMessage />
@@ -235,8 +292,8 @@ const ProjectForm = ({
                   </FormControl>
 
                   <FormDescription>
-                    Detailed project information shown on the
-                    project details page.
+                    Detailed project information shown on the project details
+                    page.
                   </FormDescription>
 
                   <FormMessage />
@@ -282,9 +339,7 @@ const ProjectForm = ({
                         onChange={(event) => {
                           const value = event.target.value;
 
-                          field.onChange(
-                            value === "" ? 0 : Number(value),
-                          );
+                          field.onChange(value === "" ? 0 : Number(value));
                         }}
                       />
                     </FormControl>
@@ -304,9 +359,7 @@ const ProjectForm = ({
         {/* Project Image */}
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
-            <h2 className="text-lg font-semibold">
-              Project image
-            </h2>
+            <h2 className="text-lg font-semibold">Project image</h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
               Upload the main image used for this project.
@@ -335,13 +388,10 @@ const ProjectForm = ({
         {/* Technologies */}
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
-            <h2 className="text-lg font-semibold">
-              Technologies
-            </h2>
+            <h2 className="text-lg font-semibold">Technologies</h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Add the technologies, frameworks, and tools used
-              in this project.
+              Add the technologies, frameworks, and tools used in this project.
             </p>
           </div>
 
@@ -369,13 +419,10 @@ const ProjectForm = ({
         {/* Project Links */}
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
-            <h2 className="text-lg font-semibold">
-              Project links
-            </h2>
+            <h2 className="text-lg font-semibold">Project links</h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Add external links visitors can use to explore
-              the project.
+              Add external links visitors can use to explore the project.
             </p>
           </div>
 
@@ -426,16 +473,14 @@ const ProjectForm = ({
           </div>
         </section>
 
-        {/* Publishing */}
+        {/* Featured Project */}
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
-            <h2 className="text-lg font-semibold">
-              Publishing
-            </h2>
+            <h2 className="text-lg font-semibold">Project visibility</h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Control whether this project is highlighted on
-              your portfolio.
+              All projects are publicly available. Use featured status to
+              control whether this project appears in featured sections.
             </p>
           </div>
 
@@ -455,9 +500,7 @@ const ProjectForm = ({
                 </FormControl>
 
                 <div className="space-y-1">
-                  <FormLabel>
-                    Featured project
-                  </FormLabel>
+                  <FormLabel>Featured project</FormLabel>
 
                   <FormDescription>
                     Highlight this project in featured sections.
@@ -466,18 +509,17 @@ const ProjectForm = ({
               </FormItem>
             )}
           />
+
+          <FormMessage />
         </section>
 
         {/* Project State */}
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
-            <h2 className="text-lg font-semibold">
-              Project state
-            </h2>
+            <h2 className="text-lg font-semibold">Project state</h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Describe the current development state of the
-              project.
+              Describe the current development state of the project.
             </p>
           </div>
 
@@ -486,9 +528,7 @@ const ProjectForm = ({
             name="status"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  Development status
-                </FormLabel>
+                <FormLabel>Development status</FormLabel>
 
                 <FormControl>
                   <select
@@ -496,17 +536,11 @@ const ProjectForm = ({
                     disabled={isSubmitting}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <option value="completed">
-                      Completed
-                    </option>
+                    <option value="completed">Completed</option>
 
-                    <option value="in-progress">
-                      In Progress
-                    </option>
+                    <option value="in-progress">In Progress</option>
 
-                    <option value="planned">
-                      Planned
-                    </option>
+                    <option value="planned">Planned</option>
                   </select>
                 </FormControl>
 
@@ -518,13 +552,8 @@ const ProjectForm = ({
 
         {/* Actions */}
         <div className="flex flex-col-reverse gap-3 border-t pt-6 sm:flex-row sm:justify-end">
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting
-              ? "Saving..."
-              : submitLabel}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : submitLabel}
           </Button>
         </div>
       </form>

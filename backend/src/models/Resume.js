@@ -6,6 +6,7 @@ const resumeSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "Resume",
+      minlength: [1, "Resume title cannot be empty"],
       maxlength: [100, "Resume title cannot exceed 100 characters"],
     },
 
@@ -24,11 +25,13 @@ const resumeSchema = new mongoose.Schema(
 
       format: {
         type: String,
+        enum: ["pdf"],
         default: "pdf",
       },
 
       size: {
         type: Number,
+        min: [1, "Resume file size must be greater than 0"],
         default: null,
       },
     },
@@ -36,6 +39,7 @@ const resumeSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+      index: true,
     },
   },
   {

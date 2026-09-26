@@ -1,9 +1,17 @@
 import { z } from "zod";
 
+/**
+ * Login validation.
+ *
+ * Only email and password are accepted.
+ * Zod strips unknown object keys by default, which prevents
+ * unexpected fields from reaching the authentication service.
+ */
 export const loginSchema = z.object({
   email: z
     .string()
     .trim()
+    .max(254, "Email cannot exceed 254 characters")
     .email("Please provide a valid email address")
     .toLowerCase(),
 
@@ -13,6 +21,12 @@ export const loginSchema = z.object({
     .max(128, "Password cannot exceed 128 characters"),
 });
 
+/**
+ * Initial admin account validation.
+ *
+ * The role is intentionally NOT accepted from the client.
+ * The backend always creates the account with role: "admin".
+ */
 export const createAdminSchema = z.object({
   name: z
     .string()
@@ -23,6 +37,7 @@ export const createAdminSchema = z.object({
   email: z
     .string()
     .trim()
+    .max(254, "Email cannot exceed 254 characters")
     .email("Please provide a valid email address")
     .toLowerCase(),
 

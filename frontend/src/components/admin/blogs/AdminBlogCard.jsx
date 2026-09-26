@@ -5,19 +5,18 @@ import { Button } from "@/components/ui/button";
 
 const AdminBlogCard = ({ blog, onDelete, isDeleting = false }) => {
   const blogId = blog?._id || blog?.id;
-
-  const blogSlug = blog?.slug || blogId;
-
+  const blogSlug = blog?.slug || null;
   const imageUrl = blog?.coverImage?.url || null;
 
   return (
     <article className="group overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-sm">
-      {/* Image */}
+      {/* Cover image */}
       <div className="relative aspect-video overflow-hidden bg-muted">
         {imageUrl ? (
           <img
             src={imageUrl}
-            alt={blog?.title || "Blog"}
+            alt={blog?.title || "Blog cover"}
+            loading="lazy"
             className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
           />
         ) : (
@@ -26,7 +25,7 @@ const AdminBlogCard = ({ blog, onDelete, isDeleting = false }) => {
           </div>
         )}
 
-        {/* Published */}
+        {/* Publication status */}
         <div className="absolute left-3 top-3">
           {blog?.published ? (
             <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/90 px-2.5 py-1 text-xs font-medium backdrop-blur">
@@ -40,15 +39,6 @@ const AdminBlogCard = ({ blog, onDelete, isDeleting = false }) => {
             </span>
           )}
         </div>
-
-        {/* Featured */}
-        {blog?.featured && (
-          <div className="absolute right-3 top-3">
-            <span className="rounded-full border bg-background/90 px-2.5 py-1 text-xs font-medium backdrop-blur">
-              Featured
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Content */}
@@ -75,9 +65,9 @@ const AdminBlogCard = ({ blog, onDelete, isDeleting = false }) => {
         {/* Tags */}
         {Array.isArray(blog?.tags) && blog.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {blog.tags.slice(0, 4).map((tag) => (
+            {blog.tags.slice(0, 4).map((tag, index) => (
               <span
-                key={tag}
+                key={`${tag}-${index}`}
                 className="rounded-md border bg-muted/40 px-2 py-1 text-xs text-muted-foreground"
               >
                 {tag}
@@ -95,11 +85,11 @@ const AdminBlogCard = ({ blog, onDelete, isDeleting = false }) => {
         {/* Actions */}
         <div className="flex items-center justify-end gap-2 border-t pt-4">
           {/* View */}
-          {blog?.slug && (
+          {blogSlug && (
             <Link
-              to={`/blog/${blog.slug}`}
+              to={`/blog/${blogSlug}`}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               aria-label={`View ${blog?.title || "blog"}`}
               className="inline-flex size-9 items-center justify-center rounded-md border bg-background text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >

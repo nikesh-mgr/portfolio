@@ -3,10 +3,10 @@ import { useQueries } from "@tanstack/react-query";
 
 import { getBlogs } from "@/api/blogApi";
 import { getCertificates } from "@/api/certificateApi";
-
 import { getExperiences } from "@/api/experienceApi";
-import { getPublishedProjects } from "@/api/projectApi";
+import { getProjects } from "@/api/projectApi";
 import { getSkills } from "@/api/skillApi";
+
 import DashboardSection from "@/components/dashboard/DashboardSection";
 import DashboardStatCard from "@/components/dashboard/DashboardStatCard";
 import QuickActions from "@/components/dashboard/QuickActions";
@@ -15,6 +15,7 @@ import RecentProjects from "@/components/dashboard/RecentProjects";
 import AdminErrorState from "@/components/admin/AdminErrorState";
 import AdminLoadingState from "@/components/admin/AdminLoadingState";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
+
 import useAuth from "@/hooks/useAuth";
 
 const Dashboard = () => {
@@ -24,7 +25,7 @@ const Dashboard = () => {
     queries: [
       {
         queryKey: ["projects", "dashboard"],
-        queryFn: getPublishedProjects,
+        queryFn: getProjects,
       },
       {
         queryKey: ["blogs", "dashboard"],
@@ -38,7 +39,6 @@ const Dashboard = () => {
         queryKey: ["skills", "dashboard"],
         queryFn: getSkills,
       },
-
       {
         queryKey: ["certificates", "dashboard"],
         queryFn: getCertificates,
@@ -75,7 +75,6 @@ const Dashboard = () => {
     blogsResult,
     experiencesResult,
     skillsResult,
-
     certificatesResult,
   ] = results;
 
@@ -96,23 +95,29 @@ const Dashboard = () => {
 
   const recentProjects = [...projects]
     .sort(
-      (a, b) =>
-        new Date(b.createdAt || b.updatedAt || 0) -
-        new Date(a.createdAt || a.updatedAt || 0),
+      (firstProject, secondProject) =>
+        new Date(secondProject.createdAt || secondProject.updatedAt || 0) -
+        new Date(firstProject.createdAt || firstProject.updatedAt || 0),
     )
     .slice(0, 5);
 
   const recentBlogs = [...blogs]
     .sort(
-      (a, b) =>
-        new Date(b.publishedAt || b.createdAt || b.updatedAt || 0) -
-        new Date(a.publishedAt || a.createdAt || a.updatedAt || 0),
+      (firstBlog, secondBlog) =>
+        new Date(
+          secondBlog.publishedAt ||
+            secondBlog.createdAt ||
+            secondBlog.updatedAt ||
+            0,
+        ) -
+        new Date(
+          firstBlog.publishedAt ||
+            firstBlog.createdAt ||
+            firstBlog.updatedAt ||
+            0,
+        ),
     )
     .slice(0, 5);
-
-  const publishedProjects = projects.filter(
-    (project) => project.published !== false,
-  ).length;
 
   const publishedBlogs = blogs.filter(
     (blog) => blog.published !== false,
@@ -127,11 +132,12 @@ const Dashboard = () => {
         }. Here's an overview of your portfolio.`}
       />
 
+      {/* Statistics */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <DashboardStatCard
           title="Projects"
           value={projects.length}
-          description={`${publishedProjects} published`}
+          description="Portfolio projects"
           icon={BriefcaseBusiness}
           href="/admin/projects"
         />
@@ -163,12 +169,13 @@ const Dashboard = () => {
         <DashboardStatCard
           title="Certificates"
           value={certificates.length}
-          description={`${certificates.length} certification entries`}
+          description="Certification entries"
           icon={Award}
           href="/admin/certificates"
         />
       </section>
 
+      {/* Recent Projects + Quick Actions */}
       <section className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
         <DashboardSection
           title="Recent projects"
@@ -193,6 +200,7 @@ const Dashboard = () => {
         </DashboardSection>
       </section>
 
+      {/* Recent Articles */}
       <DashboardSection
         title="Recent articles"
         description="Your latest published content."

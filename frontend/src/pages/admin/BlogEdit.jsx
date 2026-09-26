@@ -35,7 +35,7 @@ const BlogEdit = () => {
 
   /*
   |--------------------------------------------------------------------------
-  | Update blog
+  | Update blog mutation
   |--------------------------------------------------------------------------
   */
 
@@ -43,7 +43,7 @@ const BlogEdit = () => {
     mutationFn: async ({ values, coverImage }) => {
       /*
       |--------------------------------------------------------------------------
-      | Convert tags
+      | Convert comma-separated tags into an array
       |--------------------------------------------------------------------------
       */
 
@@ -56,7 +56,7 @@ const BlogEdit = () => {
 
       /*
       |--------------------------------------------------------------------------
-      | Convert SEO keywords
+      | Convert comma-separated SEO keywords into an array
       |--------------------------------------------------------------------------
       */
 
@@ -69,44 +69,39 @@ const BlogEdit = () => {
 
       /*
       |--------------------------------------------------------------------------
-      | Build payload
+      | Build update payload
+      |--------------------------------------------------------------------------
+      |
+      | Slug is intentionally omitted.
+      | The backend owns slug generation.
       |--------------------------------------------------------------------------
       */
 
       const payload = {
         title: values.title.trim(),
 
-        slug: values.slug?.trim() || undefined,
-
         excerpt: values.excerpt.trim(),
 
         content: values.content.trim(),
 
-        category: values.category?.trim() || null,
+        category: values.category.trim() || null,
 
         tags,
 
         published: Boolean(values.published),
 
-        readingTime: Number(values.readingTime) || 1,
+        readingTime: Number(values.readingTime),
 
         seo: {
-          metaTitle: values.metaTitle?.trim() || null,
+          metaTitle: values.metaTitle.trim() || null,
 
-          metaDescription: values.metaDescription?.trim() || null,
+          metaDescription: values.metaDescription.trim() || null,
 
           keywords,
 
-          canonicalUrl: values.canonicalUrl?.trim() || null,
+          canonicalUrl: values.canonicalUrl.trim() || null,
         },
       };
-
-      console.log("========================================");
-      console.log("UPDATING BLOG");
-      console.log("BLOG ID:", id);
-      console.log("PAYLOAD:", payload);
-      console.log("COVER IMAGE:", coverImage);
-      console.log("========================================");
 
       /*
       |--------------------------------------------------------------------------
@@ -119,39 +114,32 @@ const BlogEdit = () => {
         data: payload,
       });
 
-      console.log("BLOG UPDATE RESPONSE:", response);
-
       /*
       |--------------------------------------------------------------------------
       | STEP 2: Upload new cover image
       |--------------------------------------------------------------------------
+      |
+      | The backend replaces the existing Cloudinary image safely.
+      |--------------------------------------------------------------------------
       */
 
       if (coverImage?.file instanceof File) {
-        console.log("UPLOADING NEW COVER IMAGE:", coverImage.file);
-
-        const uploadResponse = await uploadBlogCoverImage(id, coverImage.file);
-
-        console.log("NEW COVER IMAGE RESPONSE:", uploadResponse);
+        await uploadBlogCoverImage(id, coverImage.file);
       }
 
       /*
       |--------------------------------------------------------------------------
       | STEP 3: Remove existing cover image
       |--------------------------------------------------------------------------
+      |
+      | Only execute this when the user requested removal and did not
+      | select a replacement image.
+      |--------------------------------------------------------------------------
       */
 
       if (coverImage?.remove === true && !coverImage?.file) {
-        console.log("DELETING EXISTING COVER IMAGE");
-
         await deleteBlogCoverImage(id);
       }
-
-      /*
-      |--------------------------------------------------------------------------
-      | Return final response
-      |--------------------------------------------------------------------------
-      */
 
       return response;
     },
@@ -187,18 +175,13 @@ const BlogEdit = () => {
     */
 
     onError: (error) => {
-      console.error("========================================");
-      console.error("UPDATE BLOG ERROR");
-      console.error("ERROR:", error);
-      console.error("RESPONSE:", error?.response);
-      console.error("RESPONSE DATA:", error?.response?.data);
-      console.error("========================================");
-
-      toast.error(
+      const message =
         error?.response?.data?.message ||
-          error?.message ||
-          "Failed to update blog.",
-      );
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to update blog.";
+
+      toast.error(message);
     },
   });
 
@@ -209,13 +192,6 @@ const BlogEdit = () => {
   */
 
   const handleSubmit = (values, coverImage) => {
-    console.log("========================================");
-    console.log("EDIT FORM SUBMITTED");
-    console.log("VALUES:", values);
-    console.log("COVER IMAGE:", coverImage);
-    console.log("BLOG ID:", id);
-    console.log("========================================");
-
     if (!id) {
       toast.error("Invalid blog ID.");
       return;
@@ -334,31 +310,13 @@ const BlogEdit = () => {
   | Normalize API data for BlogForm
   |--------------------------------------------------------------------------
   |
-  | Backend:
-  |
-  | tags: ["react", "javascript"]
-  |
-  | seo: {
-  |   metaTitle: "...",
-  |   metaDescription: "...",
-  |   keywords: ["react", "web"],
-  |   canonicalUrl: "..."
-  | }
-  |
-  | BlogForm:
-  |
-  | tags: "react, javascript"
-  | metaTitle: "..."
-  | metaDescription: "..."
-  | keywords: "react, web"
-  | canonicalUrl: "..."
-  |
+  | Backend arrays are converted into comma-separated strings because
+  | the form uses simple text inputs for tags and SEO keywords.
+  |--------------------------------------------------------------------------
   */
 
   const formInitialValues = {
     title: blog.title || "",
-
-    slug: blog.slug || "",
 
     excerpt: blog.excerpt || "",
 
@@ -383,21 +341,14 @@ const BlogEdit = () => {
     canonicalUrl: blog.seo?.canonicalUrl || "",
 
     /*
-     * Keep coverImage because BlogForm uses it
-     * to initialize the existing image.
+     * BlogForm uses this only to initialize the existing image.
+     * It is NOT sent back in the normal update payload.
      */
     coverImage: blog.coverImage || {
       url: null,
       publicId: null,
     },
   };
-
-  console.log("========================================");
-  console.log("BLOG EDIT");
-  console.log("RAW BLOG:", blog);
-  console.log("FORM INITIAL VALUES:", formInitialValues);
-  console.log("COVER IMAGE:", formInitialValues.coverImage);
-  console.log("========================================");
 
   /*
   |--------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 import Skill from "../models/Skill.js";
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/ApiError.js";
 
 export const createSkill = async (skillData) => {
   const name = skillData.name.trim();

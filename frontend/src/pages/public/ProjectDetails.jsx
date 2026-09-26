@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, FolderKanban } from "lucide-react";
 import { motion } from "framer-motion";
@@ -16,12 +15,7 @@ const ProjectDetails = () => {
     enabled: Boolean(slug),
   });
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-  } = projectQuery;
+  const { data, isLoading, isError, error } = projectQuery;
 
   const project = data?.project || data?.data || data || null;
 

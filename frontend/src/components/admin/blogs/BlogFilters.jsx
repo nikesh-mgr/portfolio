@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 const DEFAULT_FILTERS = {
   search: "",
   published: "all",
-  featured: "all",
+  category: "all",
 };
 
 const BlogFilters = ({
   filters = DEFAULT_FILTERS,
+  categories = [],
   onFiltersChange,
   onClear,
 }) => {
@@ -29,7 +30,7 @@ const BlogFilters = ({
   const hasActiveFilters =
     Boolean(String(currentFilters.search || "").trim()) ||
     currentFilters.published !== "all" ||
-    currentFilters.featured !== "all";
+    currentFilters.category !== "all";
 
   return (
     <div className="rounded-xl border bg-card p-4">
@@ -70,6 +71,7 @@ const BlogFilters = ({
             onChange={(event) => updateFilter("search", event.target.value)}
             placeholder="Search blogs..."
             className="pl-9"
+            aria-label="Search blogs"
           />
         </div>
 
@@ -93,33 +95,33 @@ const BlogFilters = ({
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="all">All visibility</option>
-
               <option value="published">Published</option>
-
               <option value="draft">Draft</option>
             </select>
           </div>
 
-          {/* Featured */}
+          {/* Category */}
           <div className="space-y-1.5">
             <label
-              htmlFor="blog-featured-filter"
+              htmlFor="blog-category-filter"
               className="text-xs font-medium text-muted-foreground"
             >
-              Featured
+              Category
             </label>
 
             <select
-              id="blog-featured-filter"
-              value={currentFilters.featured}
-              onChange={(event) => updateFilter("featured", event.target.value)}
+              id="blog-category-filter"
+              value={currentFilters.category}
+              onChange={(event) => updateFilter("category", event.target.value)}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <option value="all">All blogs</option>
+              <option value="all">All categories</option>
 
-              <option value="featured">Featured</option>
-
-              <option value="standard">Standard</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
             </select>
           </div>
         </div>

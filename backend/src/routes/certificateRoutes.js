@@ -1,13 +1,15 @@
 import express from "express";
 
 import {
-  getCertificatesController,
-  getCertificateByIdController,
   createCertificateController,
+  deleteCertificateController,
+  deleteCertificateImageController,
+  getAdminCertificateByIdController,
+  getAdminCertificatesController,
+  getCertificateByIdController,
+  getCertificatesController,
   updateCertificateController,
   uploadCertificateImageController,
-  deleteCertificateImageController,
-  deleteCertificateController,
 } from "../controllers/certificateController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -17,28 +19,78 @@ import asyncHandler from "../utils/asyncHandler.js";
 const router = express.Router();
 
 /*
- * Public routes
- */
+|--------------------------------------------------------------------------
+| Public Certificate Routes
+|--------------------------------------------------------------------------
+*/
 
 /**
  * GET /api/certificates
  *
- * Default:
- * only visible certificates.
- *
- * Admin:
- * use ?visible=false to retrieve all certificates.
+ * Returns only visible certificates.
  */
 router.get("/", asyncHandler(getCertificatesController));
 
+/*
+|--------------------------------------------------------------------------
+| Admin Certificate Routes
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+| These routes MUST appear before `/:id`.
+|
+| Otherwise Express interprets:
+|
+| GET /api/certificates/admin
+|
+| as:
+|
+| GET /api/certificates/:id
+|
+| with `id = "admin"`.
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * GET /api/certificates/admin
+ *
+ * Returns both visible and hidden certificates.
+ */
+router.get(
+  "/admin",
+  authMiddleware,
+  asyncHandler(getAdminCertificatesController)
+);
+
+/**
+ * GET /api/certificates/admin/:id
+ *
+ * Returns any certificate for authenticated admin.
+ */
+router.get(
+  "/admin/:id",
+  authMiddleware,
+  asyncHandler(getAdminCertificateByIdController)
+);
+
+/*
+|--------------------------------------------------------------------------
+| Public Certificate Detail
+|--------------------------------------------------------------------------
+*/
+
 /**
  * GET /api/certificates/:id
+ *
+ * Returns a certificate only when it is visible.
  */
 router.get("/:id", asyncHandler(getCertificateByIdController));
 
 /*
- * Protected admin routes
- */
+|--------------------------------------------------------------------------
+| Admin Certificate Creation
+|--------------------------------------------------------------------------
+*/
 
 /**
  * POST /api/certificates
@@ -56,15 +108,27 @@ router.post(
   asyncHandler(createCertificateController)
 );
 
+/*
+|--------------------------------------------------------------------------
+| Admin Certificate Update
+|--------------------------------------------------------------------------
+*/
+
 /**
  * PATCH /api/certificates/:id
  *
- * Content-Type:
- * application/json
+ * Updates certificate metadata.
  *
- * Image is NOT updated here.
+ * Image is handled separately through:
+ * POST /:id/image
  */
 router.patch("/:id", authMiddleware, asyncHandler(updateCertificateController));
+
+/*
+|--------------------------------------------------------------------------
+| Certificate Image
+|--------------------------------------------------------------------------
+*/
 
 /**
  * POST /api/certificates/:id/image
@@ -81,7 +145,7 @@ router.post(
 /**
  * DELETE /api/certificates/:id/image
  *
- * Remove certificate image.
+ * Delete certificate image.
  */
 router.delete(
   "/:id/image",
@@ -89,10 +153,16 @@ router.delete(
   asyncHandler(deleteCertificateImageController)
 );
 
+/*
+|--------------------------------------------------------------------------
+| Certificate Delete
+|--------------------------------------------------------------------------
+*/
+
 /**
  * DELETE /api/certificates/:id
  *
- * Delete certificate and associated image.
+ * Delete certificate and its Cloudinary image.
  */
 router.delete(
   "/:id",

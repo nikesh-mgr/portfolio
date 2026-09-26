@@ -6,8 +6,8 @@ import { z } from "zod";
 import BlogCoverImageUploader from "./BlogCoverImageUploader";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
@@ -16,11 +16,18 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 
 /*
 |--------------------------------------------------------------------------
 | Blog Form Schema
+|--------------------------------------------------------------------------
+|
+| This schema validates the admin form before the request reaches the API.
+|
+| IMPORTANT:
+| Slug is intentionally not part of the form anymore.
+| The backend generates the slug from the blog title.
 |--------------------------------------------------------------------------
 */
 
@@ -31,52 +38,46 @@ const blogFormSchema = z.object({
     .min(3, "Blog title must be at least 3 characters")
     .max(200, "Blog title cannot exceed 200 characters"),
 
-  slug: z
-    .string()
-    .trim()
-    .max(200, "Slug cannot exceed 200 characters")
-    .optional(),
-
   excerpt: z
     .string()
     .trim()
-    .min(1, "Blog excerpt is required")
+    .min(10, "Blog excerpt must be at least 10 characters")
     .max(300, "Blog excerpt cannot exceed 300 characters"),
 
   content: z
     .string()
     .trim()
-    .min(20, "Blog content must be at least 20 characters"),
+    .min(20, "Blog content must be at least 20 characters")
+    .max(100000, "Blog content cannot exceed 100000 characters"),
 
-  category: z
-    .string()
-    .trim()
-    .max(50, "Category cannot exceed 50 characters")
-    .optional(),
+  category: z.string().trim().max(50, "Category cannot exceed 50 characters"),
 
-  tags: z.string().optional(),
+  tags: z.string(),
 
   published: z.boolean(),
 
   readingTime: z.coerce
     .number()
-    .min(1, "Reading time must be at least 1 minute"),
+    .int("Reading time must be a whole number")
+    .min(1, "Reading time must be at least 1 minute")
+    .max(120, "Reading time cannot exceed 120 minutes"),
 
   metaTitle: z
     .string()
     .trim()
-    .max(70, "Meta title cannot exceed 70 characters")
-    .optional(),
+    .max(70, "Meta title cannot exceed 70 characters"),
 
   metaDescription: z
     .string()
     .trim()
-    .max(160, "Meta description cannot exceed 160 characters")
-    .optional(),
+    .max(160, "Meta description cannot exceed 160 characters"),
 
-  keywords: z.string().optional(),
+  keywords: z.string(),
 
-  canonicalUrl: z.string().trim().optional(),
+  canonicalUrl: z
+    .string()
+    .trim()
+    .max(2048, "Canonical URL cannot exceed 2048 characters"),
 });
 
 /*
@@ -87,7 +88,6 @@ const blogFormSchema = z.object({
 
 const defaultValues = {
   title: "",
-  slug: "",
   excerpt: "",
   content: "",
   category: "",
@@ -110,6 +110,7 @@ const BlogForm = ({
   initialValues = defaultValues,
   onSubmit,
   isSubmitting = false,
+  submitLabel = "Save Blog",
 }) => {
   /*
   |--------------------------------------------------------------------------
@@ -165,8 +166,6 @@ const BlogForm = ({
   */
 
   const handleCoverImageChange = (imageData) => {
-    console.log("COVER IMAGE CHANGED:", imageData);
-
     setCoverImage(imageData);
   };
 
@@ -177,14 +176,7 @@ const BlogForm = ({
   */
 
   const handleSubmit = (values) => {
-    console.log("========================================");
-    console.log("FORM VALID");
-    console.log("FORM VALUES:", values);
-    console.log("COVER IMAGE:", coverImage);
-    console.log("========================================");
-
     if (typeof onSubmit !== "function") {
-      console.error("BlogForm: onSubmit prop is not a function.");
       return;
     }
 
@@ -198,17 +190,6 @@ const BlogForm = ({
   */
 
   const handleInvalid = (errors) => {
-    console.error("========================================");
-    console.error("FORM VALIDATION FAILED");
-    console.error("VALIDATION ERRORS:", errors);
-    console.error("========================================");
-
-    /*
-    |--------------------------------------------------------------------------
-    | Focus first invalid field
-    |--------------------------------------------------------------------------
-    */
-
     const firstError = Object.keys(errors)[0];
 
     if (firstError) {
@@ -263,30 +244,6 @@ const BlogForm = ({
               <FormControl>
                 <Input
                   placeholder="Enter blog title"
-                  disabled={isSubmitting}
-                  {...field}
-                />
-              </FormControl>
-
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* ---------------------------------------------------------------- */}
-        {/* SLUG */}
-        {/* ---------------------------------------------------------------- */}
-
-        <FormField
-          control={form.control}
-          name="slug"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Slug</FormLabel>
-
-              <FormControl>
-                <Input
-                  placeholder="my-blog-post"
                   disabled={isSubmitting}
                   {...field}
                 />
@@ -391,7 +348,7 @@ const BlogForm = ({
               </FormControl>
 
               <p className="text-xs text-muted-foreground">
-                Separate tags using commas.
+                Separate tags using commas. Maximum 20 tags.
               </p>
 
               <FormMessage />
@@ -414,6 +371,7 @@ const BlogForm = ({
                 <Input
                   type="number"
                   min="1"
+                  max="120"
                   step="1"
                   disabled={isSubmitting}
                   {...field}
@@ -526,6 +484,10 @@ const BlogForm = ({
                   />
                 </FormControl>
 
+                <p className="text-xs text-muted-foreground">
+                  Separate keywords using commas. Maximum 30 keywords.
+                </p>
+
                 <FormMessage />
               </FormItem>
             )}
@@ -542,7 +504,7 @@ const BlogForm = ({
 
                 <FormControl>
                   <Input
-                    type="text"
+                    type="url"
                     placeholder="https://example.com/blog/..."
                     disabled={isSubmitting}
                     {...field}
@@ -565,7 +527,7 @@ const BlogForm = ({
             disabled={isSubmitting}
             className="min-w-[120px]"
           >
-            {isSubmitting ? "Saving..." : "Save Blog"}
+            {isSubmitting ? "Saving..." : submitLabel}
           </Button>
         </div>
       </form>
@@ -574,4 +536,3 @@ const BlogForm = ({
 };
 
 export default BlogForm;
-    // TODO: Implementar

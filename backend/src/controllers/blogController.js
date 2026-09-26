@@ -14,7 +14,7 @@ import {
   deleteFromCloudinary,
 } from "../utils/cloudinaryUpload.js";
 
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/ApiError.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -25,102 +25,114 @@ import ApiError from "../utils/apiError.js";
 /**
  * Create a new blog.
  *
- * The blog itself is created first.
- * Cover image is uploaded separately using:
+ * Cover image is intentionally handled separately through:
  *
  * POST /api/blogs/:id/cover-image
+ *
+ * This keeps normal blog data and external file management separate.
  */
 export const createBlogController = async (req, res) => {
-  const blogData = {
-    ...req.body,
-  };
-
-  const blog = await createBlog(blogData);
+  const blog = await createBlog(req.body);
 
   res.status(201).json({
     success: true,
-
     message: "Blog created successfully",
-
     blog,
   });
 };
 
 /*
 |--------------------------------------------------------------------------
-| Get Blogs
+| Public Blog Listing
 |--------------------------------------------------------------------------
 */
 
 /**
- * Get all blogs.
+ * Get published blogs for the public website.
  *
- * Public:
- * published blogs only.
- *
- * Admin:
- * ?published=false
+ * IMPORTANT:
+ * This controller does not accept a client-controlled published flag.
+ * Public users must never be able to request drafts.
  */
-export const getBlogs = async (req, res) => {
-  const publishedOnly = req.query.published !== "false";
-
+export const getPublicBlogs = async (req, res) => {
   const blogs = await getAllBlogs({
-    publishedOnly,
+    publishedOnly: true,
   });
 
   res.status(200).json({
     success: true,
-
     count: blogs.length,
-
     blogs,
   });
 };
 
 /*
 |--------------------------------------------------------------------------
-| Get Blog By Slug
+| Admin Blog Listing
 |--------------------------------------------------------------------------
 */
 
 /**
- * Get published blog by slug.
+ * Get all blogs for the authenticated admin.
+ *
+ * Includes:
+ * - published blogs
+ * - unpublished/draft blogs
+ */
+export const getAdminBlogs = async (req, res) => {
+  const blogs = await getAllBlogs({
+    publishedOnly: false,
+  });
+
+  res.status(200).json({
+    success: true,
+    count: blogs.length,
+    blogs,
+  });
+};
+
+/*
+|--------------------------------------------------------------------------
+| Public Blog By Slug
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * Get a published blog by slug.
+ *
+ * Unpublished blogs intentionally return 404 so that draft content
+ * cannot be discovered through the public endpoint.
  */
 export const getBlog = async (req, res) => {
   const blog = await getBlogBySlug(req.params.slug);
 
-  /*
-   * Do not expose unpublished blogs
-   * publicly.
-   */
   if (!blog.published) {
     throw new ApiError(404, "Blog not found");
   }
 
   res.status(200).json({
     success: true,
-
     blog,
   });
 };
 
 /*
 |--------------------------------------------------------------------------
-| Get Blog By ID
+| Admin Blog By ID
 |--------------------------------------------------------------------------
 */
 
 /**
- * Get blog by ID.
+ * Get a single blog by ID.
  *
- * Admin only.
+ * This endpoint is protected by authMiddleware in the route.
+ * Therefore it may return both published and unpublished blogs.
  */
 export const getBlogByIdController = async (req, res) => {
   const blog = await getBlogById(req.params.blogid);
 
   res.status(200).json({
     success: true,
-
     blog,
   });
 };
@@ -134,32 +146,15 @@ export const getBlogByIdController = async (req, res) => {
 /**
  * Update normal blog information.
  *
- * Cover image is handled separately.
+ * Cover image is deliberately excluded from this operation.
+ * Use the dedicated cover-image endpoint instead.
  */
 export const updateBlogController = async (req, res) => {
-  console.log("========================================");
-
-  console.log("UPDATE BLOG CONTROLLER");
-
-  console.log("BLOG ID:", req.params.id);
-
-  console.log("BODY:", req.body);
-
-  console.log("FILE:", req.file);
-
-  console.log("========================================");
-
-  const blogData = {
-    ...req.body,
-  };
-
-  const blog = await updateBlog(req.params.id, blogData);
+  const blog = await updateBlog(req.params.id, req.body);
 
   res.status(200).json({
     success: true,
-
     message: "Blog updated successfully",
-
     blog,
   });
 };
@@ -171,124 +166,107 @@ export const updateBlogController = async (req, res) => {
 */
 
 /**
- * Upload or replace blog cover image.
+ * Upload or replace a blog cover image.
  *
- * POST /api/blogs/:id/cover-image
+ * Flow:
  *
- * FormData:
+ * 1. Validate uploaded file.
+ * 2. Load existing blog.
+ * 3. Remember old Cloudinary publicId.
+ * 4. Upload new image.
+ * 5. Save new image metadata to MongoDB.
+ * 6. Delete old Cloudinary image.
  *
- * coverImage: File
+ * If Cloudinary succeeds but MongoDB fails, the newly uploaded
+ * Cloudinary image is deleted to prevent an orphaned asset.
  */
 export const uploadBlogCoverImageController = async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, "Cover image file is required");
+  }
+
+  /*
+   * Retrieve the blog before uploading so:
+   * - invalid IDs are rejected early
+   * - missing blogs do not create orphaned Cloudinary images
+   * - the previous publicId is available for cleanup
+   */
+  const existingBlog = await getBlogById(req.params.id);
+
+  const oldPublicId = existingBlog.coverImage?.publicId;
+
   let uploadedImage = null;
+  let databaseUpdated = false;
 
   try {
-    console.log("========================================");
-
-    console.log("BLOG COVER IMAGE UPLOAD");
-
-    console.log("BLOG ID:", req.params.id);
-
-    console.log("FILE:", req.file);
-
-    console.log("BODY:", req.body);
-
-    console.log("========================================");
-
     /*
-     * Multer must receive the file.
+     * Upload the image to the dedicated blog folder.
      */
-    if (!req.file) {
-      throw new ApiError(400, "Cover image file is required");
-    }
-
-    /*
-     * Validate blog ID and retrieve
-     * existing blog.
-     */
-    const existingBlog = await getBlogById(req.params.id);
-
-    console.log("EXISTING COVER:", existingBlog.coverImage);
-
-    /*
-     * Upload file buffer to Cloudinary.
-     */
-    console.log("UPLOADING TO CLOUDINARY...");
-
     uploadedImage = await uploadToCloudinary(
       req.file.buffer,
       "portfolio/blogs",
       "image"
     );
 
-    console.log("CLOUDINARY RESULT:", uploadedImage);
-
     /*
-     * Verify Cloudinary response.
+     * Cloudinary must return both values required by the database.
      */
     if (!uploadedImage?.secure_url || !uploadedImage?.public_id) {
       throw new ApiError(500, "Cloudinary upload failed");
     }
 
-    /*
-     * Build database object.
-     */
     const coverImage = {
       url: uploadedImage.secure_url,
-
       publicId: uploadedImage.public_id,
     };
 
-    console.log("COVER IMAGE TO SAVE:", coverImage);
-
     /*
-     * Save new Cloudinary information
-     * to MongoDB.
+     * Store the new Cloudinary metadata in MongoDB.
      */
     const blog = await updateBlogCoverImage(req.params.id, coverImage);
 
-    console.log("BLOG AFTER UPDATE:", blog);
+    /*
+     * From this point onward, the new image is referenced by MongoDB.
+     *
+     * Therefore it must NOT be deleted by the outer cleanup handler.
+     */
+    databaseUpdated = true;
 
     /*
-     * Delete old Cloudinary image
-     * AFTER MongoDB update succeeds.
+     * Delete the previous image only after the DB update succeeds.
      */
-    const oldPublicId = existingBlog.coverImage?.publicId;
-
     if (oldPublicId && oldPublicId !== coverImage.publicId) {
-      console.log("DELETING OLD IMAGE:", oldPublicId);
-
       try {
         await deleteFromCloudinary(oldPublicId, "image");
       } catch (error) {
         /*
-         * Do not fail the request because
-         * old image cleanup failed.
+         * The blog is already correctly pointing to the new image.
+         * Old-image cleanup can be retried separately if necessary.
          */
-        console.error("FAILED TO DELETE OLD IMAGE:", error);
+        console.error("Failed to delete old blog cover image:", error);
       }
     }
 
     res.status(200).json({
       success: true,
-
       message: "Blog cover image uploaded successfully",
-
       blog,
     });
   } catch (error) {
-    console.error("BLOG COVER IMAGE ERROR:", error);
-
     /*
-     * If Cloudinary upload succeeded
-     * but MongoDB update failed, remove
-     * the newly uploaded image.
+     * If Cloudinary upload succeeded but MongoDB update failed,
+     * remove the newly uploaded image.
+     *
+     * If MongoDB already succeeded, do NOT remove it.
      */
-    if (uploadedImage?.public_id) {
+    if (uploadedImage?.public_id && !databaseUpdated) {
       try {
         await deleteFromCloudinary(uploadedImage.public_id, "image");
       } catch (cleanupError) {
-        console.error("FAILED TO CLEANUP NEW IMAGE:", cleanupError);
+        console.error(
+          "Failed to cleanup newly uploaded blog image:",
+          cleanupError
+        );
       }
     }
 
@@ -303,48 +281,40 @@ export const uploadBlogCoverImageController = async (req, res) => {
 */
 
 /**
- * Delete blog cover image.
+ * Delete the current blog cover image.
  *
- * DELETE /api/blogs/:id/cover-image
+ * Database reference is removed first.
+ * Cloudinary cleanup is performed afterwards.
  */
 export const deleteBlogCoverImageController = async (req, res) => {
-  /*
-   * Get existing blog.
-   */
   const blog = await getBlogById(req.params.id);
 
   const publicId = blog.coverImage?.publicId;
 
-  /*
-   * If there is no image, return
-   * a proper 404.
-   */
   if (!publicId) {
     throw new ApiError(404, "Blog cover image not found");
   }
 
   /*
-   * First remove database reference.
+   * Remove the database reference first.
    */
   await removeBlogCoverImage(req.params.id);
 
   /*
-   * Then remove image from Cloudinary.
+   * Remove the external Cloudinary asset.
    */
   try {
     await deleteFromCloudinary(publicId, "image");
   } catch (error) {
     /*
-     * MongoDB is already updated.
-     * Log Cloudinary cleanup failure
-     * instead of failing the request.
+     * MongoDB is already updated, so do not report the request
+     * as failed simply because external cleanup failed.
      */
-    console.error("FAILED TO DELETE CLOUDINARY IMAGE:", error);
+    console.error("Failed to delete Cloudinary blog cover image:", error);
   }
 
   res.status(200).json({
     success: true,
-
     message: "Blog cover image deleted successfully",
   });
 };
@@ -356,38 +326,43 @@ export const deleteBlogCoverImageController = async (req, res) => {
 */
 
 /**
- * Delete blog and its cover image.
+ * Delete a blog and its cover image.
  *
- * DELETE /api/blogs/:id
+ * MongoDB deletion happens first.
+ * Cloudinary cleanup happens afterwards.
  */
 export const deleteBlogController = async (req, res) => {
   /*
-   * Get blog before deleting it so
-   * we can get its Cloudinary public ID.
+   * Retrieve the blog before deletion so we can preserve
+   * its Cloudinary publicId.
    */
   const blog = await getBlogById(req.params.id);
 
   const publicId = blog.coverImage?.publicId;
 
   /*
-   * Delete MongoDB document.
+   * Delete the MongoDB document.
    */
   await deleteBlog(req.params.id);
 
   /*
-   * Delete Cloudinary image.
+   * Delete the associated Cloudinary asset.
    */
   if (publicId) {
     try {
       await deleteFromCloudinary(publicId, "image");
     } catch (error) {
-      console.error("FAILED TO DELETE BLOG COVER:", error);
+      /*
+       * The blog no longer exists in MongoDB.
+       * External cleanup failure should not turn this into
+       * a false-negative API response.
+       */
+      console.error("Failed to delete Cloudinary blog cover image:", error);
     }
   }
 
   res.status(200).json({
     success: true,
-
     message: "Blog deleted successfully",
   });
 };

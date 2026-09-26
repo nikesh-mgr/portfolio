@@ -1,352 +1,435 @@
-import { useState } from "react";
-
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-import { Award, Loader2, Plus, RefreshCw, X } from "lucide-react";
-
+import { Plus } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import {
   createCertificate,
   deleteCertificate,
   deleteCertificateImage,
-  getCertificates,
+  getAdminCertificates,
   updateCertificate,
   uploadCertificateImage,
 } from "@/api/certificateApi";
 
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import CertificateForm from "@/components/admin/certificate/CertificateForm";
 import CertificateList from "@/components/admin/certificate/CertificateList";
+import { Button } from "@/components/ui/button";
+
+const getErrorMessage = (error, fallbackMessage) => {
+  return error?.response?.data?.message || error?.message || fallbackMessage;
+};
 
 const Certificate = () => {
   const queryClient = useQueryClient();
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-
+  const [showForm, setShowForm] = useState(false);
   const [editingCertificate, setEditingCertificate] = useState(null);
-
-  const [search, setSearch] = useState("");
-
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+  /*
+   * --------------------------------------------------------------------------
+   * Certificates Query
+   * --------------------------------------------------------------------------
+   */
+
+  const certificatesQuery = useQuery({
     queryKey: ["certificates", "admin"],
-    queryFn: () =>
-      getCertificates({
-        visible: false,
-      }),
+    queryFn: getAdminCertificates,
   });
 
-  const certificates = data?.certificates || data?.data || [];
+  const certificates =
+    certificatesQuery.data?.certificates || certificatesQuery.data?.data || [];
+
+  /*
+   * --------------------------------------------------------------------------
+   * Query Invalidation
+   * --------------------------------------------------------------------------
+   */
+
+  const invalidateCertificates = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["certificates"],
+    });
+  };
+
+  /*
+   * --------------------------------------------------------------------------
+   * Create Certificate
+   * --------------------------------------------------------------------------
+   */
 
   const createMutation = useMutation({
     mutationFn: createCertificate,
 
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["certificates"],
-      });
+    onSuccess: async () => {
+      await invalidateCertificates();
 
-      toast.success("Certificate created successfully");
+      toast.success("Certificate created successfully.");
 
-      setIsFormOpen(false);
+      setEditingCertificate(null);
+      setShowForm(false);
     },
 
     onError: (error) => {
-      toast.error(
-        error?.response?.data?.message || "Failed to create certificate",
-      );
+      toast.error(getErrorMessage(error, "Failed to create certificate."));
     },
   });
+
+  /*
+   * --------------------------------------------------------------------------
+   * Update Certificate
+   * --------------------------------------------------------------------------
+   */
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => updateCertificate(id, data),
 
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["certificates"],
-      });
+    onSuccess: async () => {
+      await invalidateCertificates();
 
-      toast.success("Certificate updated successfully");
+      toast.success("Certificate updated successfully.");
     },
 
     onError: (error) => {
-      toast.error(
-        error?.response?.data?.message || "Failed to update certificate",
-      );
+      toast.error(getErrorMessage(error, "Failed to update certificate."));
     },
   });
 
-  const imageUploadMutation = useMutation({
+  /*
+   * --------------------------------------------------------------------------
+   * Upload Certificate Image
+   * --------------------------------------------------------------------------
+   */
+
+  const uploadImageMutation = useMutation({
     mutationFn: ({ id, image }) => uploadCertificateImage(id, image),
 
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["certificates"],
-      });
+    onSuccess: async () => {
+      await invalidateCertificates();
 
-      toast.success("Certificate image updated successfully");
+      toast.success("Certificate image updated successfully.");
     },
 
     onError: (error) => {
       toast.error(
-        error?.response?.data?.message || "Failed to upload certificate image",
+        getErrorMessage(error, "Failed to update certificate image."),
       );
     },
   });
 
-  const imageDeleteMutation = useMutation({
+  /*
+   * --------------------------------------------------------------------------
+   * Delete Certificate Image
+   * --------------------------------------------------------------------------
+   */
+
+  const deleteImageMutation = useMutation({
     mutationFn: deleteCertificateImage,
 
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["certificates"],
-      });
+    onSuccess: async () => {
+      await invalidateCertificates();
 
-      toast.success("Certificate image removed successfully");
+      toast.success("Certificate image removed successfully.");
     },
 
     onError: (error) => {
       toast.error(
-        error?.response?.data?.message || "Failed to remove certificate image",
+        getErrorMessage(error, "Failed to remove certificate image."),
       );
     },
   });
+
+  /*
+   * --------------------------------------------------------------------------
+   * Delete Certificate
+   * --------------------------------------------------------------------------
+   */
 
   const deleteMutation = useMutation({
     mutationFn: deleteCertificate,
 
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["certificates"],
-      });
+    onSuccess: async (_, deletedCertificateId) => {
+      await invalidateCertificates();
 
-      toast.success("Certificate deleted successfully");
+      toast.success("Certificate deleted successfully.");
 
       setDeleteTarget(null);
+
+      if (editingCertificate?._id === deletedCertificateId) {
+        setEditingCertificate(null);
+        setShowForm(false);
+      }
     },
 
     onError: (error) => {
-      toast.error(
-        error?.response?.data?.message || "Failed to delete certificate",
-      );
+      toast.error(getErrorMessage(error, "Failed to delete certificate."));
     },
   });
 
-  const handleCreate = () => {
-    setEditingCertificate(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEdit = (certificate) => {
-    setEditingCertificate(certificate);
-    setIsFormOpen(true);
-  };
-
-  const handleFormSubmit = async ({ data: formData, image, removeImage }) => {
-    if (!editingCertificate) {
-      await createMutation.mutateAsync({
-        data: formData,
-        image,
-      });
-
-      return;
-    }
-
-    const id = editingCertificate._id;
-
-    await updateMutation.mutateAsync({
-      id,
-      data: formData,
-    });
-
-    if (image) {
-      await imageUploadMutation.mutateAsync({
-        id,
-        image,
-      });
-    } else if (removeImage && editingCertificate.image?.publicId) {
-      await imageDeleteMutation.mutateAsync(id);
-    }
-
-    setEditingCertificate(null);
-    setIsFormOpen(false);
-  };
-
-  const handleDelete = () => {
-    if (!deleteTarget) return;
-
-    deleteMutation.mutate(deleteTarget._id);
-  };
+  /*
+   * --------------------------------------------------------------------------
+   * Combined Submission State
+   * --------------------------------------------------------------------------
+   */
 
   const isSubmitting =
     createMutation.isPending ||
     updateMutation.isPending ||
-    imageUploadMutation.isPending ||
-    imageDeleteMutation.isPending;
+    uploadImageMutation.isPending ||
+    deleteImageMutation.isPending ||
+    deleteMutation.isPending;
+
+  /*
+   * --------------------------------------------------------------------------
+   * Create / Update Form Submission
+   * --------------------------------------------------------------------------
+   */
+
+  const handleSubmit = async (data, imageState) => {
+    /*
+     * Editing an existing certificate:
+     *
+     * 1. Update certificate metadata.
+     * 2. Upload a new image if selected.
+     * 3. Delete the existing image if requested.
+     */
+
+    if (editingCertificate) {
+      const certificateId = editingCertificate._id;
+
+      await updateMutation.mutateAsync({
+        id: certificateId,
+        data,
+      });
+
+      if (imageState?.file) {
+        await uploadImageMutation.mutateAsync({
+          id: certificateId,
+          image: imageState.file,
+        });
+      } else if (imageState?.remove) {
+        await deleteImageMutation.mutateAsync(certificateId);
+      }
+
+      setEditingCertificate(null);
+      setShowForm(false);
+
+      return;
+    }
+
+    /*
+     * Creating a new certificate.
+     *
+     * The image is sent together with the certificate data
+     * through the createCertificate API function.
+     */
+
+    await createMutation.mutateAsync({
+      data,
+      image: imageState?.file || null,
+    });
+  };
+
+  /*
+   * --------------------------------------------------------------------------
+   * Create
+   * --------------------------------------------------------------------------
+   */
+
+  const handleCreate = () => {
+    setEditingCertificate(null);
+    setShowForm(true);
+  };
+
+  /*
+   * --------------------------------------------------------------------------
+   * Edit
+   * --------------------------------------------------------------------------
+   */
+
+  const handleEdit = (certificate) => {
+    setEditingCertificate(certificate);
+    setShowForm(true);
+  };
+
+  /*
+   * --------------------------------------------------------------------------
+   * Delete
+   * --------------------------------------------------------------------------
+   */
+
+  const handleDelete = (certificate) => {
+    setDeleteTarget(certificate);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget?._id || deleteMutation.isPending) {
+      return;
+    }
+
+    deleteMutation.mutate(deleteTarget._id);
+  };
+
+  /*
+   * --------------------------------------------------------------------------
+   * Cancel Form
+   * --------------------------------------------------------------------------
+   */
+
+  const handleCancel = () => {
+    if (isSubmitting) {
+      return;
+    }
+
+    setEditingCertificate(null);
+    setShowForm(false);
+  };
+
+  /*
+   * --------------------------------------------------------------------------
+   * Loading State
+   * --------------------------------------------------------------------------
+   */
+
+  if (certificatesQuery.isLoading) {
+    return (
+      <div className="space-y-6">
+        <AdminPageHeader
+          title="Certificates"
+          description="Manage your professional certificates and credentials."
+        />
+
+        <div className="flex min-h-64 items-center justify-center rounded-xl border bg-card">
+          <p className="text-sm text-muted-foreground">
+            Loading certificates...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * --------------------------------------------------------------------------
+   * Error State
+   * --------------------------------------------------------------------------
+   */
+
+  if (certificatesQuery.isError) {
+    return (
+      <div className="space-y-6">
+        <AdminPageHeader
+          title="Certificates"
+          description="Manage your professional certificates and credentials."
+        />
+
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6">
+          <p className="font-medium text-destructive">
+            Failed to load certificates.
+          </p>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            {getErrorMessage(certificatesQuery.error, "Please try again.")}
+          </p>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4"
+            onClick={() => certificatesQuery.refetch()}
+          >
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * --------------------------------------------------------------------------
+   * Main Page
+   * --------------------------------------------------------------------------
+   */
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border bg-muted/30">
-              <Award className="h-5 w-5" />
-            </div>
+      {/* Page Header + Create Button */}
+      <div className="flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <AdminPageHeader
+          title="Certificates"
+          description="Manage your professional certificates and credentials."
+        />
 
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">
-                Certificates
-              </h1>
-
-              <p className="text-sm text-muted-foreground">
-                Manage the certifications displayed on your portfolio.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
-            />
-
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
-
-          <button
+        {!showForm && (
+          <Button
             type="button"
             onClick={handleCreate}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+            disabled={isSubmitting}
+            className="w-full shrink-0 gap-2 sm:w-auto"
           >
-            <Plus className="h-4 w-4" />
-            Add certificate
-          </button>
-        </div>
-      </header>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Add Certificate
+          </Button>
+        )}
+      </div>
 
-      {isFormOpen && (
-        <section className="rounded-xl border bg-muted/10 p-4 sm:p-6">
-          <div className="mb-6 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="font-semibold">
-                {editingCertificate ? "Edit certificate" : "Add certificate"}
-              </h2>
-
-              <p className="text-sm text-muted-foreground">
-                {editingCertificate
-                  ? "Update certificate information and image."
-                  : "Add a certification to your professional background."}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsFormOpen(false);
-                setEditingCertificate(null);
-              }}
-              disabled={isSubmitting}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border transition hover:bg-muted disabled:opacity-50"
-              aria-label="Close certificate form"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          <CertificateForm
-            initialData={editingCertificate}
-            onSubmit={handleFormSubmit}
-            onCancel={() => {
-              setIsFormOpen(false);
-              setEditingCertificate(null);
-            }}
-            isSubmitting={isSubmitting}
-          />
-        </section>
-      )}
-
-      {isLoading ? (
-        <div className="flex min-h-72 items-center justify-center rounded-xl border">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading certificates...
-          </div>
-        </div>
-      ) : isError ? (
-        <div className="flex min-h-72 flex-col items-center justify-center rounded-xl border border-destructive/20 px-6 text-center">
-          <h3 className="font-semibold">Failed to load certificates</h3>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            {error?.response?.data?.message ||
-              "Something went wrong while loading certificates."}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="mt-4 rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-muted"
-          >
-            Try again
-          </button>
-        </div>
+      {/* Create / Edit Form */}
+      {showForm ? (
+        <CertificateForm
+          initialData={editingCertificate}
+          onSubmit={handleSubmit}
+          onCancel={handleCancel}
+          isSubmitting={isSubmitting}
+        />
       ) : (
+        /* Certificate List */
         <CertificateList
           certificates={certificates}
-          search={search}
-          onSearchChange={setSearch}
           onEdit={handleEdit}
-          onDelete={setDeleteTarget}
+          onDelete={handleDelete}
         />
       )}
 
+      {/* Delete Confirmation */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-certificate-title"
-            className="w-full max-w-md rounded-xl border bg-background p-6 shadow-xl"
-          >
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-certificate-title"
+        >
+          <div className="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
             <h2 id="delete-certificate-title" className="text-lg font-semibold">
               Delete certificate?
             </h2>
 
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            <p className="mt-2 text-sm text-muted-foreground">
               This will permanently delete{" "}
               <span className="font-medium text-foreground">
                 {deleteTarget.title}
-              </span>{" "}
-              and its associated certificate image.
+              </span>
+              . This action cannot be undone.
             </p>
 
-            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
                 type="button"
-                onClick={() => setDeleteTarget(null)}
+                variant="outline"
                 disabled={deleteMutation.isPending}
-                className="h-10 rounded-lg border px-4 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+                onClick={() => setDeleteTarget(null)}
               >
                 Cancel
-              </button>
+              </Button>
 
-              <button
+              <Button
                 type="button"
-                onClick={handleDelete}
+                variant="destructive"
                 disabled={deleteMutation.isPending}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-destructive px-4 text-sm font-medium text-destructive-foreground transition hover:opacity-90 disabled:opacity-50"
+                onClick={confirmDelete}
               >
-                {deleteMutation.isPending && (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                )}
-                Delete certificate
-              </button>
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </Button>
             </div>
           </div>
         </div>

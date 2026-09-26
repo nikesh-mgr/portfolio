@@ -16,6 +16,26 @@ const urlValidator = {
   message: "Please provide a valid HTTP or HTTPS URL",
 };
 
+const profileImageSchema = new mongoose.Schema(
+  {
+    url: {
+      type: String,
+      required: true,
+      trim: true,
+      validate: urlValidator,
+    },
+
+    publicId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const siteSettingsSchema = new mongoose.Schema(
   {
     siteName: {
@@ -49,17 +69,8 @@ const siteSettingsSchema = new mongoose.Schema(
     },
 
     profileImage: {
-      type: String,
-      trim: true,
+      type: profileImageSchema,
       default: null,
-      validate: urlValidator,
-    },
-
-    resumeUrl: {
-      type: String,
-      trim: true,
-      default: null,
-      validate: urlValidator,
     },
 
     contactEmail: {

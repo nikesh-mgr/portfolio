@@ -1,21 +1,61 @@
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/ApiError.js";
 
-const validate = (schema) => {
+/*
+|--------------------------------------------------------------------------
+| Zod Validation Middleware
+|--------------------------------------------------------------------------
+|
+| Validates a specific part of the Express request before the request
+| reaches the controller/service layer.
+|
+| Supported targets:
+| - body
+| - params
+| - query
+|
+| The parsed Zod result replaces the original request value so
+| controllers receive normalized and validated data.
+|--------------------------------------------------------------------------
+*/
+
+const validate = (schema, target = "body") => {
+  const allowedTargets = ["body", "params", "query"];
+
+  if (!allowedTargets.includes(target)) {
+    throw new Error(
+      `Invalid validation target "${target}". Expected body, params, or query.`
+    );
+  }
+
   return (req, res, next) => {
-    const result = schema.safeParse(req.body);
+    const result = schema.safeParse(req[target]);
 
     if (!result.success) {
       const errors = result.error.issues.map((issue) => ({
-        field: issue.path.join(".") || "body",
+        field: issue.path.join(".") || target,
         message: issue.message,
       }));
 
-      throw new ApiError(400, "Validation failed", errors);
+      return next(new ApiError(400, "Validation failed", errors));
     }
 
-    req.body = result.data;
+    /*
+    |--------------------------------------------------------------------------
+    | Replace request data with Zod's parsed output
+    |--------------------------------------------------------------------------
+    |
+    | This preserves:
+    | - trimming
+    | - coercion
+    | - preprocessing
+    | - defaults
+    | - normalization
+    |--------------------------------------------------------------------------
+    */
 
-    next();
+    req[target] = result.data;
+
+    return next();
   };
 };
 

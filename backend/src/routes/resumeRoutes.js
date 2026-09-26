@@ -3,6 +3,7 @@ import express from "express";
 import authMiddleware from "../middleware/authMiddleware.js";
 import resumeUploadMiddleware from "../middleware/resumeUploadMiddleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { uploadRateLimiter } from "../middleware/rateLimiter.js";
 
 import {
   getResumeController,
@@ -21,6 +22,8 @@ const router = express.Router();
 
 /**
  * GET /api/resume
+ *
+ * Get the currently active resume.
  */
 router.get("/", asyncHandler(getResumeController));
 
@@ -32,21 +35,28 @@ router.get("/", asyncHandler(getResumeController));
 
 /**
  * POST /api/resume
+ *
+ * Upload a new resume.
  */
 router.post(
   "/",
-  authMiddleware,
+
+  uploadRateLimiter,
   resumeUploadMiddleware.single("resume"),
   asyncHandler(uploadResumeController)
 );
 
 /**
  * PATCH /api/resume/:id
+ *
+ * Update resume metadata.
  */
 router.patch("/:id", authMiddleware, asyncHandler(updateResumeController));
 
 /**
  * DELETE /api/resume/:id
+ *
+ * Delete resume.
  */
 router.delete("/:id", authMiddleware, asyncHandler(deleteResumeController));
 

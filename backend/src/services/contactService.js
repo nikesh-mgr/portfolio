@@ -1,5 +1,5 @@
 import Contact from "../models/Contact.js";
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/ApiError.js";
 import { sendContactEmail } from "./emailService.js";
 import logger from "../utils/logger.js";
 

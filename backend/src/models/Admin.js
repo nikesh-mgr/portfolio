@@ -2,13 +2,14 @@ import mongoose from "mongoose";
 
 const adminSchema = new mongoose.Schema(
   {
+    // Optional profile image stored in Cloudinary.
+    // Only the URL and Cloudinary public ID are persisted.
     image: {
       url: {
         type: String,
         default: null,
         trim: true,
       },
-
       publicId: {
         type: String,
         default: null,
@@ -36,6 +37,8 @@ const adminSchema = new mongoose.Schema(
       ],
     },
 
+    // Password hashes are never returned by default.
+    // Authentication explicitly uses .select("+password").
     password: {
       type: String,
       required: [true, "Admin password is required"],
@@ -45,9 +48,20 @@ const adminSchema = new mongoose.Schema(
 
     role: {
       type: String,
+
+      // There is intentionally only one supported admin role.
       enum: ["admin"],
+
       default: "admin",
+
+      // Prevent changing the role after the account is created.
       immutable: true,
+
+      // IMPORTANT:
+      // The portfolio is designed around a single admin account.
+      // A unique index makes this guarantee database-enforced and
+      // protects against concurrent /create-admin requests.
+      unique: true,
     },
 
     isActive: {
@@ -58,12 +72,6 @@ const adminSchema = new mongoose.Schema(
     lastLogin: {
       type: Date,
       default: null,
-    },
-    resume: {
-      url: { type: String, default: null, trim: true },
-      publicId: { type: String, default: null, trim: true },
-      originalName: { type: String, default: null, trim: true },
-      uploadedAt: { type: Date, default: null },
     },
   },
   {

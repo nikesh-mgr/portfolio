@@ -1,3 +1,4 @@
+
 import { useMemo, useState } from "react";
 
 import {
@@ -7,13 +8,11 @@ import {
   ChevronDown,
   Clock3,
   Eye,
-  EyeOff,
   Mail,
   MailOpen,
   MessageSquare,
   RefreshCw,
   Trash2,
-  UserRound,
 } from "lucide-react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -235,7 +234,10 @@ const MessageCard = ({
                   </h3>
 
                   {!message.isRead && (
-                    <Badge variant="default" className="h-5 px-1.5 text-[10px]">
+                    <Badge
+                      variant="default"
+                      className="h-5 px-1.5 text-[10px]"
+                    >
                       New
                     </Badge>
                   )}
@@ -275,6 +277,7 @@ const MessageCard = ({
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock3 className="h-3.5 w-3.5" />
+
                 <span>{formatDate(message.createdAt)}</span>
               </div>
 
@@ -287,6 +290,7 @@ const MessageCard = ({
                   className="h-8 gap-1.5 px-2.5"
                 >
                   <Eye className="h-4 w-4" />
+
                   <span className="hidden sm:inline">View</span>
                 </Button>
 
@@ -301,11 +305,13 @@ const MessageCard = ({
                   {message.isRead ? (
                     <>
                       <Mail className="h-4 w-4" />
+
                       <span className="hidden sm:inline">Unread</span>
                     </>
                   ) : (
                     <>
                       <MailOpen className="h-4 w-4" />
+
                       <span className="hidden sm:inline">Read</span>
                     </>
                   )}
@@ -320,6 +326,7 @@ const MessageCard = ({
                   className="h-8 px-2.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />
+
                   <span className="hidden sm:inline">Delete</span>
                 </Button>
               </div>
@@ -434,11 +441,13 @@ const MessageDetails = ({ message, onToggleRead, isUpdating }) => {
           {message.isRead ? (
             <>
               <Mail className="h-4 w-4" />
+
               Mark as unread
             </>
           ) : (
             <>
               <MailOpen className="h-4 w-4" />
+
               Mark as read
             </>
           )}
@@ -454,6 +463,7 @@ const MessageDetails = ({ message, onToggleRead, isUpdating }) => {
           }}
         >
           <Mail className="h-4 w-4" />
+
           Reply
         </Button>
       </div>
@@ -599,7 +609,9 @@ const Messages = () => {
             <div>
               <p className="text-2xl font-bold">{messages.length}</p>
 
-              <p className="text-sm text-muted-foreground">Total messages</p>
+              <p className="text-sm text-muted-foreground">
+                Total messages
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -613,7 +625,9 @@ const Messages = () => {
             <div>
               <p className="text-2xl font-bold">{unreadCount}</p>
 
-              <p className="text-sm text-muted-foreground">Unread messages</p>
+              <p className="text-sm text-muted-foreground">
+                Unread messages
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -629,7 +643,9 @@ const Messages = () => {
                 {messages.length - unreadCount}
               </p>
 
-              <p className="text-sm text-muted-foreground">Read messages</p>
+              <p className="text-sm text-muted-foreground">
+                Read messages
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -640,13 +656,17 @@ const Messages = () => {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <DropdownMenu>
-                <DropdownMenuTrigger asChild={false}>
-                  <Button type="button" variant="outline" className="gap-2">
-                    {filterOptions.find((option) => option.value === filter)
-                      ?.label || "All messages"}
+                {/* Base UI DropdownMenuTrigger already renders a button.
+                    Do not nest the shadcn Button component inside it. */}
+                <DropdownMenuTrigger
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                >
+                  {filterOptions.find((option) => option.value === filter)
+                    ?.label || "All messages"}
 
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
+                  <ChevronDown className="h-4 w-4" />
                 </DropdownMenuTrigger>
 
                 <DropdownMenuContent align="start">
@@ -656,9 +676,13 @@ const Messages = () => {
                       onClick={() => setFilter(option.value)}
                       className="gap-2"
                     >
-                      {filter === option.value && <Check className="h-4 w-4" />}
+                      {filter === option.value && (
+                        <Check className="h-4 w-4" />
+                      )}
 
-                      <span className={filter === option.value ? "" : "pl-6"}>
+                      <span
+                        className={filter === option.value ? "" : "pl-6"}
+                      >
                         {option.label}
                       </span>
                     </DropdownMenuItem>
@@ -667,7 +691,9 @@ const Messages = () => {
               </DropdownMenu>
 
               {filter === "unread" && unreadCount > 0 && (
-                <Badge variant="secondary">{unreadCount} unread</Badge>
+                <Badge variant="secondary">
+                  {unreadCount} unread
+                </Badge>
               )}
             </div>
 
@@ -682,6 +708,7 @@ const Messages = () => {
               <RefreshCw
                 className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
               />
+
               Refresh
             </Button>
           </div>
@@ -697,7 +724,9 @@ const Messages = () => {
                   <AlertCircle className="h-6 w-6 text-destructive" />
                 </div>
 
-                <h3 className="font-semibold">Failed to load messages</h3>
+                <h3 className="font-semibold">
+                  Failed to load messages
+                </h3>
 
                 <p className="mt-1 max-w-md text-sm text-muted-foreground">
                   {error?.response?.data?.message ||
@@ -712,6 +741,7 @@ const Messages = () => {
                   className="mt-4 gap-2"
                 >
                   <RefreshCw className="h-4 w-4" />
+
                   Try again
                 </Button>
               </CardContent>

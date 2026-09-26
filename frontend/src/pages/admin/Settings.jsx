@@ -1,41 +1,38 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  Check,
   Globe,
   Loader2,
-  MapPin,
-  Save,
   Search,
   Settings as SettingsIcon,
-  Trash2,
 } from "lucide-react";
-import {
-  FaFacebook,
-  FaGithub,
-  FaInstagram,
-  FaLinkedin,
-  FaTwitter,
-} from "react-icons/fa";
 import { toast } from "sonner";
 
 import {
   createSiteSettings,
+  deleteProfileImage,
   deleteSiteSettings,
   getSiteSettings,
+  updateProfileImage,
   updateSiteSettings,
+  uploadProfileImage,
 } from "@/api/siteSettingsApi";
 
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
+
+import AdvancedSettings from "@/components/admin/settings/AdvancedSettings";
+import GeneralSettings from "@/components/admin/settings/GeneralSettings";
+import SeoSettings from "@/components/admin/settings/SeoSettings";
+import SettingsSaveBar from "@/components/admin/settings/SettingsSaveBar";
+import SettingsSidebar from "@/components/admin/settings/SettingsSidebar";
+import SocialSettings from "@/components/admin/settings/SocialSettings";
 
 const emptySettings = {
   siteName: "",
   developerName: "",
   tagline: "",
   bio: "",
-  profileImage: "",
-  resumeUrl: "",
   contactEmail: "",
   location: "",
   socialLinks: {
@@ -49,7 +46,6 @@ const emptySettings = {
     metaTitle: "",
     metaDescription: "",
     keywords: [],
-    ogImage: "",
   },
   isMaintenanceMode: false,
 };
@@ -59,10 +55,9 @@ const normalizeSettings = (settings) => ({
   developerName: settings?.developerName || "",
   tagline: settings?.tagline || "",
   bio: settings?.bio || "",
-  profileImage: settings?.profileImage || "",
-  resumeUrl: settings?.resumeUrl || "",
   contactEmail: settings?.contactEmail || "",
   location: settings?.location || "",
+
   socialLinks: {
     github: settings?.socialLinks?.github || "",
     linkedin: settings?.socialLinks?.linkedin || "",
@@ -70,14 +65,15 @@ const normalizeSettings = (settings) => ({
     facebook: settings?.socialLinks?.facebook || "",
     instagram: settings?.socialLinks?.instagram || "",
   },
+
   seo: {
     metaTitle: settings?.seo?.metaTitle || "",
     metaDescription: settings?.seo?.metaDescription || "",
     keywords: Array.isArray(settings?.seo?.keywords)
       ? settings.seo.keywords
       : [],
-    ogImage: settings?.seo?.ogImage || "",
   },
+
   isMaintenanceMode: Boolean(settings?.isMaintenanceMode),
 });
 
@@ -99,12 +95,20 @@ const isValidEmail = (value) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 };
 
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 const Settings = () => {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState(emptySettings);
   const [activeSection, setActiveSection] = useState("general");
   const [isDirty, setIsDirty] = useState(false);
+
+  const [imagePreview, setImagePreview] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["siteSettings"],
@@ -114,12 +118,23 @@ const Settings = () => {
 
   const settings = data?.settings || null;
 
+  const profileImageUrl =
+    settings?.profileImage?.url || settings?.profileImage || null;
+
   useEffect(() => {
-    if (settings) {
-      setFormData(normalizeSettings(settings));
-      setIsDirty(false);
-    }
+    if (!settings) return;
+
+    setFormData(normalizeSettings(settings));
+    setIsDirty(false);
   }, [settings]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload) => {
@@ -151,6 +166,61 @@ const Settings = () => {
     },
   });
 
+  const uploadImageMutation = useMutation({
+    mutationFn: uploadProfileImage,
+
+    onSuccess: (response) => {
+      queryClient.setQueryData(["siteSettings"], response);
+
+      clearImageSelection();
+
+      toast.success("Profile image uploaded successfully");
+    },
+
+    onError: (mutationError) => {
+      toast.error(
+        mutationError?.response?.data?.message ||
+          "Failed to upload profile image",
+      );
+    },
+  });
+
+  const updateImageMutation = useMutation({
+    mutationFn: updateProfileImage,
+
+    onSuccess: (response) => {
+      queryClient.setQueryData(["siteSettings"], response);
+
+      clearImageSelection();
+
+      toast.success("Profile image updated successfully");
+    },
+
+    onError: (mutationError) => {
+      toast.error(
+        mutationError?.response?.data?.message ||
+          "Failed to update profile image",
+      );
+    },
+  });
+
+  const deleteImageMutation = useMutation({
+    mutationFn: deleteProfileImage,
+
+    onSuccess: (response) => {
+      queryClient.setQueryData(["siteSettings"], response);
+
+      toast.success("Profile image removed successfully");
+    },
+
+    onError: (mutationError) => {
+      toast.error(
+        mutationError?.response?.data?.message ||
+          "Failed to remove profile image",
+      );
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteSiteSettings,
 
@@ -173,6 +243,19 @@ const Settings = () => {
       );
     },
   });
+
+  const clearImageSelection = () => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    setSelectedImage(null);
+    setImagePreview(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const updateField = (field, value) => {
     setFormData((current) => ({
@@ -215,14 +298,11 @@ const Settings = () => {
     }
 
     const urlFields = [
-      ["profileImage", formData.profileImage],
-      ["resumeUrl", formData.resumeUrl],
       ["github", formData.socialLinks.github],
       ["linkedin", formData.socialLinks.linkedin],
       ["twitter", formData.socialLinks.twitter],
       ["facebook", formData.socialLinks.facebook],
       ["instagram", formData.socialLinks.instagram],
-      ["ogImage", formData.seo.ogImage],
     ];
 
     urlFields.forEach(([field, value]) => {
@@ -264,8 +344,6 @@ const Settings = () => {
       developerName: formData.developerName.trim(),
       tagline: formData.tagline.trim() || null,
       bio: formData.bio.trim() || null,
-      profileImage: formData.profileImage.trim() || null,
-      resumeUrl: formData.resumeUrl.trim() || null,
       contactEmail: formData.contactEmail.trim() || null,
       location: formData.location.trim() || null,
 
@@ -283,7 +361,6 @@ const Settings = () => {
         keywords: formData.seo.keywords
           .map((keyword) => keyword.trim())
           .filter(Boolean),
-        ogImage: formData.seo.ogImage.trim() || null,
       },
 
       isMaintenanceMode: formData.isMaintenanceMode,
@@ -301,15 +378,71 @@ const Settings = () => {
     updateNestedField("seo", "keywords", keywords);
   };
 
-  const handleDelete = () => {
-    const confirmed = window.confirm(
-      "Delete site settings? This will remove your current portfolio configuration.",
-    );
+  const handleImageSelect = (event) => {
+    const file = event.target.files?.[0];
 
-    if (!confirmed) return;
+    if (!file) return;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Only JPG, PNG, and WebP images are allowed");
+
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      toast.error("Profile image must be smaller than 5 MB");
+
+      event.target.value = "";
+      return;
+    }
+
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    setSelectedImage(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleUploadImage = () => {
+    if (!selectedImage) {
+      toast.error("Please select an image first");
+      return;
+    }
+
+    if (profileImageUrl) {
+      updateImageMutation.mutate(selectedImage);
+      return;
+    }
+
+    uploadImageMutation.mutate(selectedImage);
+  };
+
+  const handleDeleteImage = () => {
+    if (!window.confirm("Remove the current profile image?")) {
+      return;
+    }
+
+    deleteImageMutation.mutate();
+  };
+
+  const handleDelete = () => {
+    if (
+      !window.confirm(
+        "Delete site settings? This will remove your current portfolio configuration.",
+      )
+    ) {
+      return;
+    }
 
     deleteMutation.mutate();
   };
+
+  const isImageMutationPending =
+    uploadImageMutation.isPending ||
+    updateImageMutation.isPending ||
+    deleteImageMutation.isPending;
 
   const sections = [
     {
@@ -400,530 +533,66 @@ const Settings = () => {
 
       <form onSubmit={handleSubmit}>
         <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-xl border bg-card p-2 lg:sticky lg:top-24">
-            <nav className="flex gap-1 overflow-x-auto lg:block">
-              {sections.map((section) => {
-                const Icon = section.icon;
-                const isActive = activeSection === section.id;
-
-                return (
-                  <button
-                    key={section.id}
-                    type="button"
-                    onClick={() => setActiveSection(section.id)}
-                    className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:w-full ${
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {section.label}
-                  </button>
-                );
-              })}
-            </nav>
-          </aside>
+          <SettingsSidebar
+            sections={sections}
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+          />
 
           <div className="min-w-0 space-y-6">
             {activeSection === "general" && (
-              <>
-                <section className="rounded-xl border bg-card">
-                  <div className="border-b p-5">
-                    <h2 className="font-semibold">General information</h2>
-
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Basic information displayed throughout your portfolio.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-5 p-5 md:grid-cols-2">
-                    <FormField
-                      label="Site name"
-                      required
-                      value={formData.siteName}
-                      onChange={(value) => updateField("siteName", value)}
-                      placeholder="My Developer Portfolio"
-                      error={validationErrors.siteName}
-                    />
-
-                    <FormField
-                      label="Developer name"
-                      required
-                      value={formData.developerName}
-                      onChange={(value) => updateField("developerName", value)}
-                      placeholder="John Doe"
-                      error={validationErrors.developerName}
-                    />
-
-                    <div className="md:col-span-2">
-                      <FormField
-                        label="Tagline"
-                        value={formData.tagline}
-                        onChange={(value) => updateField("tagline", value)}
-                        placeholder="Full Stack Developer building useful products."
-                        maxLength={200}
-                        error={validationErrors.tagline}
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <TextAreaField
-                        label="Bio"
-                        value={formData.bio}
-                        onChange={(value) => updateField("bio", value)}
-                        placeholder="Tell visitors about yourself, your development experience, interests, and goals."
-                        maxLength={3000}
-                        rows={7}
-                        error={validationErrors.bio}
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-xl border bg-card">
-                  <div className="border-b p-5">
-                    <h2 className="font-semibold">Profile & contact</h2>
-
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Information visitors can use to identify and contact you.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-5 p-5 md:grid-cols-2">
-                    <UrlField
-                      label="Profile image URL"
-                      value={formData.profileImage}
-                      onChange={(value) => updateField("profileImage", value)}
-                      placeholder="https://..."
-                      error={validationErrors.profileImage}
-                    />
-
-                    <UrlField
-                      label="Resume URL"
-                      value={formData.resumeUrl}
-                      onChange={(value) => updateField("resumeUrl", value)}
-                      placeholder="https://..."
-                      error={validationErrors.resumeUrl}
-                    />
-
-                    <FormField
-                      label="Contact email"
-                      type="email"
-                      value={formData.contactEmail}
-                      onChange={(value) => updateField("contactEmail", value)}
-                      placeholder="hello@example.com"
-                      error={validationErrors.contactEmail}
-                    />
-
-                    <FormField
-                      label="Location"
-                      value={formData.location}
-                      onChange={(value) => updateField("location", value)}
-                      placeholder="Kathmandu, Nepal"
-                      icon={MapPin}
-                    />
-                  </div>
-                </section>
-              </>
+              <GeneralSettings
+                formData={formData}
+                validationErrors={validationErrors}
+                updateField={updateField}
+                profileImageUrl={profileImageUrl}
+                imagePreview={imagePreview}
+                selectedImage={selectedImage}
+                fileInputRef={fileInputRef}
+                isImageMutationPending={isImageMutationPending}
+                onSelectImage={handleImageSelect}
+                onUploadImage={handleUploadImage}
+                onCancelImage={clearImageSelection}
+                onDeleteImage={handleDeleteImage}
+              />
             )}
 
             {activeSection === "social" && (
-              <section className="rounded-xl border bg-card">
-                <div className="border-b p-5">
-                  <h2 className="font-semibold">Social links</h2>
-
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Add your professional and social profiles.
-                  </p>
-                </div>
-
-                <div className="grid gap-5 p-5">
-                  <SocialUrlField
-                    label="GitHub"
-                    value={formData.socialLinks.github}
-                    onChange={(value) =>
-                      updateNestedField("socialLinks", "github", value)
-                    }
-                    placeholder="https://github.com/username"
-                    icon={FaGithub}
-                    error={validationErrors.github}
-                  />
-
-                  <SocialUrlField
-                    label="LinkedIn"
-                    value={formData.socialLinks.linkedin}
-                    onChange={(value) =>
-                      updateNestedField("socialLinks", "linkedin", value)
-                    }
-                    placeholder="https://linkedin.com/in/username"
-                    icon={FaLinkedin}
-                    error={validationErrors.linkedin}
-                  />
-
-                  <SocialUrlField
-                    label="Twitter / X"
-                    value={formData.socialLinks.twitter}
-                    onChange={(value) =>
-                      updateNestedField("socialLinks", "twitter", value)
-                    }
-                    placeholder="https://x.com/username"
-                    icon={FaTwitter}
-                    error={validationErrors.twitter}
-                  />
-
-                  <SocialUrlField
-                    label="Facebook"
-                    value={formData.socialLinks.facebook}
-                    onChange={(value) =>
-                      updateNestedField("socialLinks", "facebook", value)
-                    }
-                    placeholder="https://facebook.com/username"
-                    icon={FaFacebook}
-                    error={validationErrors.facebook}
-                  />
-
-                  <SocialUrlField
-                    label="Instagram"
-                    value={formData.socialLinks.instagram}
-                    onChange={(value) =>
-                      updateNestedField("socialLinks", "instagram", value)
-                    }
-                    placeholder="https://instagram.com/username"
-                    icon={FaInstagram}
-                    error={validationErrors.instagram}
-                  />
-                </div>
-              </section>
+              <SocialSettings
+                socialLinks={formData.socialLinks}
+                validationErrors={validationErrors}
+                updateNestedField={updateNestedField}
+              />
             )}
 
             {activeSection === "seo" && (
-              <section className="rounded-xl border bg-card">
-                <div className="border-b p-5">
-                  <h2 className="font-semibold">Search engine optimization</h2>
-
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Configure metadata used by search engines and social
-                    previews.
-                  </p>
-                </div>
-
-                <div className="space-y-5 p-5">
-                  <FormField
-                    label="Meta title"
-                    value={formData.seo.metaTitle}
-                    onChange={(value) =>
-                      updateNestedField("seo", "metaTitle", value)
-                    }
-                    placeholder="John Doe — Full Stack Developer"
-                    maxLength={70}
-                    error={validationErrors.metaTitle}
-                  />
-
-                  <TextAreaField
-                    label="Meta description"
-                    value={formData.seo.metaDescription}
-                    onChange={(value) =>
-                      updateNestedField("seo", "metaDescription", value)
-                    }
-                    placeholder="Full Stack Developer building modern web applications..."
-                    maxLength={160}
-                    rows={4}
-                    error={validationErrors.metaDescription}
-                  />
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium">
-                      Keywords
-                    </label>
-
-                    <input
-                      type="text"
-                      value={formData.seo.keywords.join(", ")}
-                      onChange={(event) =>
-                        handleKeywordsChange(event.target.value)
-                      }
-                      placeholder="react, node.js, mongodb, full stack developer"
-                      className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    />
-
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Separate keywords using commas.
-                    </p>
-                  </div>
-
-                  <UrlField
-                    label="Open Graph image URL"
-                    value={formData.seo.ogImage}
-                    onChange={(value) =>
-                      updateNestedField("seo", "ogImage", value)
-                    }
-                    placeholder="https://..."
-                    error={validationErrors.ogImage}
-                  />
-                </div>
-              </section>
+              <SeoSettings
+                seo={formData.seo}
+                validationErrors={validationErrors}
+                updateNestedField={updateNestedField}
+                onKeywordsChange={handleKeywordsChange}
+              />
             )}
 
             {activeSection === "advanced" && (
-              <>
-                <section className="rounded-xl border bg-card">
-                  <div className="border-b p-5">
-                    <h2 className="font-semibold">Maintenance mode</h2>
-
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Temporarily indicate that your portfolio is unavailable.
-                    </p>
-                  </div>
-
-                  <div className="p-5">
-                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4">
-                      <input
-                        type="checkbox"
-                        checked={formData.isMaintenanceMode}
-                        onChange={(event) =>
-                          updateField("isMaintenanceMode", event.target.checked)
-                        }
-                        className="mt-1 h-4 w-4 rounded"
-                      />
-
-                      <span>
-                        <span className="block text-sm font-medium">
-                          Enable maintenance mode
-                        </span>
-
-                        <span className="mt-1 block text-sm text-muted-foreground">
-                          Enable this when the public portfolio is temporarily
-                          unavailable.
-                        </span>
-                      </span>
-                    </label>
-
-                    {formData.isMaintenanceMode && (
-                      <div className="mt-4 flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
-                        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-
-                        <p className="text-sm">
-                          Maintenance mode is enabled. Make sure your frontend
-                          handles this setting before relying on it in
-                          production.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                {settings && (
-                  <section className="rounded-xl border border-destructive/30 bg-destructive/5">
-                    <div className="border-b border-destructive/20 p-5">
-                      <h2 className="font-semibold text-destructive">
-                        Danger zone
-                      </h2>
-
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Permanently remove the current site settings document.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="font-medium">Delete site settings</p>
-
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          You can create the settings again afterward.
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleDelete}
-                        disabled={deleteMutation.isPending}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-destructive/40 px-4 text-sm font-medium text-destructive transition hover:bg-destructive hover:text-destructive-foreground disabled:pointer-events-none disabled:opacity-50"
-                      >
-                        {deleteMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                        Delete settings
-                      </button>
-                    </div>
-                  </section>
-                )}
-              </>
+              <AdvancedSettings
+                formData={formData}
+                updateField={updateField}
+                settings={settings}
+                deleteMutation={deleteMutation}
+                onDelete={handleDelete}
+              />
             )}
 
-            <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {isDirty ? (
-                  <>
-                    <span className="h-2 w-2 rounded-full bg-amber-500" />
-                    Unsaved changes
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    All changes saved
-                  </>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={
-                  saveMutation.isPending ||
-                  Object.keys(validationErrors).length > 0
-                }
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
-              >
-                {saveMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-
-                {settings ? "Save changes" : "Create settings"}
-              </button>
-            </div>
+            <SettingsSaveBar
+              isDirty={isDirty}
+              isPending={saveMutation.isPending}
+              hasValidationErrors={Object.keys(validationErrors).length > 0}
+              hasSettings={Boolean(settings)}
+            />
           </div>
         </div>
       </form>
-    </div>
-  );
-};
-
-const FormField = ({
-  label,
-  required = false,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  maxLength,
-  error,
-  icon: Icon,
-}) => {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-medium">
-        {label}
-        {required && <span className="ml-1 text-destructive">*</span>}
-      </label>
-
-      <div className="relative">
-        {Icon && (
-          <Icon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        )}
-
-        <input
-          type={type}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          maxLength={maxLength}
-          className={`h-10 w-full rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
-            Icon ? "pl-9" : ""
-          } ${error ? "border-destructive" : ""}`}
-        />
-      </div>
-
-      <div className="mt-1 flex justify-between gap-3">
-        {error ? <p className="text-xs text-destructive">{error}</p> : <span />}
-
-        {maxLength && (
-          <span className="text-xs text-muted-foreground">
-            {value.length}/{maxLength}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const TextAreaField = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  maxLength,
-  rows = 5,
-  error,
-}) => {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-medium">{label}</label>
-
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        rows={rows}
-        className={`w-full resize-y rounded-md border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
-          error ? "border-destructive" : ""
-        }`}
-      />
-
-      <div className="mt-1 flex justify-between gap-3">
-        {error ? <p className="text-xs text-destructive">{error}</p> : <span />}
-
-        {maxLength && (
-          <span className="text-xs text-muted-foreground">
-            {value.length}/{maxLength}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const UrlField = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  error,
-  icon: Icon,
-}) => {
-  return (
-    <FormField
-      label={label}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      error={error}
-      icon={Icon}
-    />
-  );
-};
-
-const SocialUrlField = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  icon: Icon,
-  error,
-}) => {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-medium">{label}</label>
-
-      <div className="relative">
-        <Icon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-        <input
-          type="url"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          className={`h-10 w-full rounded-md border bg-background pl-10 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
-            error ? "border-destructive" : ""
-          }`}
-        />
-      </div>
-
-      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
     </div>
   );
 };

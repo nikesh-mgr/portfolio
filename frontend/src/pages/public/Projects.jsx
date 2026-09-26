@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
-import { getPublishedProjects } from "@/api/projectApi";
+import { getProjects } from "@/api/projectApi";
 import ProjectFilters from "@/components/projects/ProjectFilters";
 import ProjectsGrid from "@/components/projects/ProjectsGrid";
 
@@ -13,8 +13,8 @@ const Projects = () => {
   const [selectedTechnology, setSelectedTechnology] = useState("all");
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["projects", "published"],
-    queryFn: getPublishedProjects,
+    queryKey: ["projects"],
+    queryFn: getProjects,
   });
 
   const projects = useMemo(() => {
@@ -61,6 +61,7 @@ const Projects = () => {
         project.title,
         project.shortDescription,
         project.description,
+        project.category,
         ...projectTechnologies,
       ]
         .filter(Boolean)
@@ -87,10 +88,12 @@ const Projects = () => {
     setSelectedTechnology("all");
   };
 
-  const hasActiveFilters = search.trim() || selectedTechnology !== "all";
+  const hasActiveFilters =
+    search.trim().length > 0 || selectedTechnology !== "all";
 
   return (
     <div className="container-page py-16 sm:py-20 lg:py-24">
+      {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -112,6 +115,7 @@ const Projects = () => {
         </p>
       </motion.header>
 
+      {/* Filters */}
       {!isLoading && !isError && projects.length > 0 && (
         <ProjectFilters
           search={search}
@@ -125,8 +129,10 @@ const Projects = () => {
         />
       )}
 
+      {/* Loading */}
       {isLoading && <ProjectsGrid projects={[]} isLoading />}
 
+      {/* Error */}
       {isError && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -150,6 +156,7 @@ const Projects = () => {
         </motion.div>
       )}
 
+      {/* No Projects */}
       {!isLoading && !isError && projects.length === 0 && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -161,11 +168,12 @@ const Projects = () => {
           <h2 className="mt-4 text-xl font-semibold">No projects yet</h2>
 
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-            Projects will appear here once they have been published.
+            Projects will appear here once they are added to the portfolio.
           </p>
         </motion.div>
       )}
 
+      {/* No Matching Projects */}
       {!isLoading &&
         !isError &&
         projects.length > 0 &&
@@ -185,21 +193,25 @@ const Projects = () => {
               Try a different search term or technology filter.
             </p>
 
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <X className="size-4" />
-              Clear filters
-            </button>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <X className="size-4" />
+                Clear filters
+              </button>
+            )}
           </motion.div>
         )}
 
+      {/* Projects Grid */}
       {!isLoading && !isError && filteredProjects.length > 0 && (
         <ProjectsGrid projects={filteredProjects} />
       )}
 
+      {/* CTA */}
       {!isLoading && !isError && projects.length > 0 && (
         <motion.div
           initial={{ opacity: 0 }}

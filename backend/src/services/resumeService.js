@@ -1,7 +1,16 @@
 import mongoose from "mongoose";
 
 import Resume from "../models/Resume.js";
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/ApiError.js";
+
+/**
+ * Validate MongoDB ObjectId.
+ */
+const validateResumeId = (resumeId) => {
+  if (!mongoose.Types.ObjectId.isValid(resumeId)) {
+    throw new ApiError(400, "Invalid resume ID");
+  }
+};
 
 /**
  * Get the active resume.
@@ -20,9 +29,7 @@ export const getResume = async () => {
  * Get resume by ID.
  */
 export const getResumeById = async (resumeId) => {
-  if (!mongoose.Types.ObjectId.isValid(resumeId)) {
-    throw new ApiError(400, "Invalid resume ID");
-  }
+  validateResumeId(resumeId);
 
   const resume = await Resume.findById(resumeId);
 
@@ -34,14 +41,30 @@ export const getResumeById = async (resumeId) => {
 };
 
 /**
- * Create resume.
+ * Create a new resume.
+ *
+ * The newly uploaded resume becomes the only active resume.
  */
 export const createResume = async (resumeData) => {
   /*
-   * Only one active resume should exist.
+   * Create the new resume first.
+   *
+   * This is intentionally done before deactivating the old resume.
+   * If creation fails, the existing active resume remains active.
+   */
+  const resume = await Resume.create({
+    ...resumeData,
+    isActive: true,
+  });
+
+  /*
+   * Deactivate all other active resumes.
    */
   await Resume.updateMany(
-    { isActive: true },
+    {
+      _id: { $ne: resume._id },
+      isActive: true,
+    },
     {
       $set: {
         isActive: false,
@@ -49,21 +72,14 @@ export const createResume = async (resumeData) => {
     }
   );
 
-  const resume = await Resume.create({
-    ...resumeData,
-    isActive: true,
-  });
-
   return resume;
 };
 
 /**
- * Update resume.
+ * Update resume metadata.
  */
 export const updateResume = async (resumeId, resumeData) => {
-  if (!mongoose.Types.ObjectId.isValid(resumeId)) {
-    throw new ApiError(400, "Invalid resume ID");
-  }
+  validateResumeId(resumeId);
 
   const resume = await Resume.findById(resumeId);
 
@@ -71,7 +87,34 @@ export const updateResume = async (resumeId, resumeData) => {
     throw new ApiError(404, "Resume not found");
   }
 
-  Object.assign(resume, resumeData);
+  /*
+   * Activating this resume:
+   * deactivate every other active resume first.
+   */
+  if (resumeData.isActive === true) {
+    await Resume.updateMany(
+      {
+        _id: { $ne: resume._id },
+        isActive: true,
+      },
+      {
+        $set: {
+          isActive: false,
+        },
+      }
+    );
+  }
+
+  /*
+   * Prevent arbitrary undefined values from being assigned.
+   */
+  if (resumeData.title !== undefined) {
+    resume.title = resumeData.title;
+  }
+
+  if (resumeData.isActive !== undefined) {
+    resume.isActive = resumeData.isActive;
+  }
 
   await resume.save();
 
@@ -82,9 +125,7 @@ export const updateResume = async (resumeId, resumeData) => {
  * Delete resume.
  */
 export const deleteResume = async (resumeId) => {
-  if (!mongoose.Types.ObjectId.isValid(resumeId)) {
-    throw new ApiError(400, "Invalid resume ID");
-  }
+  validateResumeId(resumeId);
 
   const resume = await Resume.findById(resumeId);
 

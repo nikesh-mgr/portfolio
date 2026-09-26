@@ -1,13 +1,13 @@
 import api from "./axios";
 
-export const loginAdmin = async (credentials) => {
-  const response = await api.post("/auth/login", credentials);
+export const createAdmin = async (adminData) => {
+  const response = await api.post("/auth/create-admin", adminData);
 
   return response.data;
 };
 
-export const registerAdmin = async (adminData) => {
-  const response = await api.post("/auth/register", adminData);
+export const loginAdmin = async (credentials) => {
+  const response = await api.post("/auth/login", credentials);
 
   return response.data;
 };

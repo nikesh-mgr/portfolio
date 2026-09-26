@@ -7,7 +7,25 @@ const parseBoolean = (value, defaultValue = false) => {
     return value;
   }
 
-  return value === "true";
+  if (typeof value === "string") {
+    const normalizedValue = value.trim().toLowerCase();
+
+    if (normalizedValue === "true") {
+      return true;
+    }
+
+    if (normalizedValue === "false") {
+      return false;
+    }
+  }
+
+  /*
+   * Preserve invalid values instead of silently converting them.
+   *
+   * The feature validator will reject the value with a proper
+   * validation error.
+   */
+  return value;
 };
 
 const parseArray = (value) => {
@@ -26,7 +44,13 @@ const parseArray = (value) => {
       return parsed.map((item) => String(item).trim()).filter(Boolean);
     }
   } catch {
-    // Fall back to a single value.
+    /*
+     * Multipart forms commonly submit arrays as a comma-separated
+     * or single string value.
+     *
+     * Treat the original value as one item rather than inventing
+     * additional structure.
+     */
   }
 
   return [String(value).trim()].filter(Boolean);
@@ -37,9 +61,28 @@ const parseNumber = (value, defaultValue = 0) => {
     return defaultValue;
   }
 
-  const parsed = Number(value);
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : value;
+  }
 
-  return Number.isFinite(parsed) ? parsed : defaultValue;
+  if (typeof value === "string") {
+    const normalizedValue = value.trim();
+
+    if (normalizedValue === "") {
+      return defaultValue;
+    }
+
+    const parsed = Number(normalizedValue);
+
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  /*
+   * Preserve invalid input so validation can reject it.
+   */
+  return value;
 };
 
 const parseExperienceFormData = (body) => {
@@ -47,6 +90,10 @@ const parseExperienceFormData = (body) => {
     ...body,
   };
 
+  /*
+   * Boolean form fields arrive as strings when using
+   * multipart/form-data.
+   */
   if ("current" in body) {
     data.current = parseBoolean(body.current);
   }
@@ -55,10 +102,17 @@ const parseExperienceFormData = (body) => {
     data.featured = parseBoolean(body.featured);
   }
 
+  /*
+   * Numeric form fields also arrive as strings.
+   */
   if ("order" in body) {
     data.order = parseNumber(body.order);
   }
 
+  /*
+   * Array fields can arrive as JSON strings, repeated fields,
+   * or individual string values.
+   */
   if ("responsibilities" in body) {
     data.responsibilities = parseArray(body.responsibilities);
   }
@@ -68,7 +122,7 @@ const parseExperienceFormData = (body) => {
   }
 
   /*
-   * Empty endDate should become null rather than "".
+   * Empty optional dates should become null.
    */
   if (body.endDate === "" || body.endDate === undefined) {
     data.endDate = null;

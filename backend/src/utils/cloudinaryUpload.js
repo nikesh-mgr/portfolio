@@ -46,7 +46,14 @@ export const uploadToCloudinary = async (
 };
 
 /**
- * Upload a PDF file to Cloudinary.
+ * Upload a PDF resume to Cloudinary.
+ *
+ * PDFs are stored as raw resources so the resource type
+ * remains consistent when replacing or deleting the file.
+ *
+ * @param {Buffer} fileBuffer
+ * @param {string} folder
+ * @returns {Promise<object>}
  */
 export const uploadPdfToCloudinary = async (fileBuffer, folder) => {
   if (!fileBuffer) {
@@ -76,6 +83,10 @@ export const uploadPdfToCloudinary = async (fileBuffer, folder) => {
 
 /**
  * Delete a file from Cloudinary.
+ *
+ * @param {string} publicId
+ * @param {string} resourceType
+ * @returns {Promise<void>}
  */
 export const deleteFromCloudinary = async (
   publicId,

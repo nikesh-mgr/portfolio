@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
-import { deleteBlog, getBlogs } from "@/api/blogApi";
+import { deleteBlog, getAdminBlogs } from "@/api/blogApi";
 
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import DeleteConfirmDialog from "@/components/admin/DeleteConfirmDialog";
@@ -16,43 +16,58 @@ import { Button } from "@/components/ui/button";
 const DEFAULT_FILTERS = {
   search: "",
   published: "all",
-  featured: "all",
+  category: "all",
 };
 
 const Blogs = () => {
   const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
-
   const [blogToDelete, setBlogToDelete] = useState(null);
 
   /*
-   * ------------------------------------------------------------------------
-   * Get blogs
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
+   * Get admin blogs
+   * --------------------------------------------------------------------------
+   *
+   * The admin endpoint returns both published blogs and drafts.
+   *
+   * Do not use getBlogs() here because GET /blogs is intentionally
+   * restricted to publicly published blogs.
    */
 
   const blogsQuery = useQuery({
     queryKey: ["blogs"],
-    queryFn: getBlogs,
+    queryFn: getAdminBlogs,
   });
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    * Delete blog
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   const deleteMutation = useMutation({
     mutationFn: deleteBlog,
 
     onSuccess: async () => {
+      /*
+       * Refresh the admin blog list.
+       */
+
       await queryClient.invalidateQueries({
         queryKey: ["blogs"],
+        refetchType: "all",
       });
+
+      /*
+       * Refresh public blog queries because deleting a published blog
+       * changes the public blog collection.
+       */
 
       await queryClient.invalidateQueries({
         queryKey: ["publishedBlogs"],
+        refetchType: "all",
       });
 
       setBlogToDelete(null);
@@ -61,14 +76,17 @@ const Blogs = () => {
     },
 
     onError: (error) => {
-      toast.error(error?.response?.data?.message || "Failed to delete blog.");
+      const message =
+        error?.response?.data?.message || "Failed to delete blog.";
+
+      toast.error(message);
     },
   });
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    * Extract blogs
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   const blogs = useMemo(() => {
@@ -79,9 +97,32 @@ const Blogs = () => {
   }, [blogsQuery.data]);
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
+   * Extract categories
+   * --------------------------------------------------------------------------
+   *
+   * Categories are derived from the admin blog response so the filter
+   * remains synchronized with the actual stored blog data.
+   */
+
+  const categories = useMemo(() => {
+    const categorySet = new Set();
+
+    for (const blog of blogs) {
+      const category = blog?.category?.trim();
+
+      if (category) {
+        categorySet.add(category);
+      }
+    }
+
+    return Array.from(categorySet).sort((a, b) => a.localeCompare(b));
+  }, [blogs]);
+
+  /*
+   * --------------------------------------------------------------------------
    * Filter blogs
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   const filteredBlogs = useMemo(() => {
@@ -89,64 +130,70 @@ const Blogs = () => {
       .trim()
       .toLowerCase();
 
+    const selectedCategory = String(filters.category || "all")
+      .trim()
+      .toLowerCase();
+
     const result = blogs.filter((blog) => {
       /*
-       * Search
+       * Search across useful blog fields.
        */
 
       const matchesSearch =
         !search ||
-        blog.title?.toLowerCase().includes(search) ||
-        blog.excerpt?.toLowerCase().includes(search) ||
-        blog.content?.toLowerCase().includes(search) ||
-        blog.category?.toLowerCase().includes(search) ||
-        blog.slug?.toLowerCase().includes(search) ||
-        (Array.isArray(blog.tags) &&
+        blog?.title?.toLowerCase().includes(search) ||
+        blog?.excerpt?.toLowerCase().includes(search) ||
+        blog?.content?.toLowerCase().includes(search) ||
+        blog?.category?.toLowerCase().includes(search) ||
+        blog?.slug?.toLowerCase().includes(search) ||
+        (Array.isArray(blog?.tags) &&
           blog.tags.some((tag) => tag?.toLowerCase().includes(search)));
 
       /*
-       * Published
+       * Published status.
        */
 
       const matchesPublished =
         filters.published === "all" ||
-        (filters.published === "published" && blog.published === true) ||
-        (filters.published === "draft" && blog.published !== true);
+        (filters.published === "published" && blog?.published === true) ||
+        (filters.published === "draft" && blog?.published !== true);
 
       /*
-       * Featured
+       * Category.
        */
 
-      const matchesFeatured =
-        filters.featured === "all" ||
-        (filters.featured === "featured" && blog.featured === true) ||
-        (filters.featured === "standard" && blog.featured !== true);
+      const matchesCategory =
+        selectedCategory === "all" ||
+        blog?.category?.trim().toLowerCase() === selectedCategory;
 
-      return matchesSearch && matchesPublished && matchesFeatured;
+      return matchesSearch && matchesPublished && matchesCategory;
     });
 
     /*
-     * Featured first.
-     * Then newest updated/created.
+     * Sort newest updated blogs first.
+     *
+     * publishedAt is used when available so recently published
+     * content remains naturally ordered, followed by updated/created
+     * timestamps.
      */
 
     return [...result].sort((a, b) => {
-      if (Boolean(a.featured) !== Boolean(b.featured)) {
-        return a.featured ? -1 : 1;
-      }
+      const dateA = new Date(
+        a?.updatedAt || a?.publishedAt || a?.createdAt || 0,
+      ).getTime();
 
-      const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
-
-      const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      const dateB = new Date(
+        b?.updatedAt || b?.publishedAt || b?.createdAt || 0,
+      ).getTime();
 
       return dateB - dateA;
     });
   }, [blogs, filters]);
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    * Delete request
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   const handleDeleteRequest = (blog) => {
@@ -154,9 +201,9 @@ const Blogs = () => {
   };
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    * Confirm delete
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   const handleDeleteConfirm = () => {
@@ -168,7 +215,6 @@ const Blogs = () => {
 
     if (!blogId) {
       toast.error("Unable to identify this blog.");
-
       return;
     }
 
@@ -176,9 +222,9 @@ const Blogs = () => {
   };
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    * Filters
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   const handleFiltersChange = (nextFilters) => {
@@ -193,20 +239,20 @@ const Blogs = () => {
   };
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    * Active filters
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   const hasActiveFilters =
     Boolean(String(filters.search || "").trim()) ||
     filters.published !== "all" ||
-    filters.featured !== "all";
+    filters.category !== "all";
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    * Loading
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   if (blogsQuery.isLoading) {
@@ -228,9 +274,9 @@ const Blogs = () => {
   }
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    * Error
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   if (blogsQuery.isError) {
@@ -266,9 +312,9 @@ const Blogs = () => {
   }
 
   /*
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    * Page
-   * ------------------------------------------------------------------------
+   * --------------------------------------------------------------------------
    */
 
   return (
@@ -287,6 +333,7 @@ const Blogs = () => {
 
       <BlogFilters
         filters={filters}
+        categories={categories}
         onFiltersChange={handleFiltersChange}
         onClear={handleClearFilters}
       />
@@ -355,7 +402,7 @@ const Blogs = () => {
 
           <div className="grid gap-4 lg:hidden">
             {filteredBlogs.map((blog) => {
-              const blogId = blog._id || blog.id || blog.slug;
+              const blogId = blog?._id || blog?.id || blog?.slug;
 
               return (
                 <AdminBlogCard

@@ -1,26 +1,109 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-
-import {
-  CalendarDays,
-  ExternalLink,
-  FileText,
-  Loader2,
-  Save,
-} from "lucide-react";
+import { z } from "zod";
 
 import CertificateImageUploader from "./CertificateImageUploader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
-const defaultValues = {
-  title: "",
-  issuer: "",
-  issueDate: "",
-  credentialId: "",
-  credentialUrl: "",
-  description: "",
-  order: 0,
-  isVisible: true,
-};
+/*
+|--------------------------------------------------------------------------
+| Certificate Validation
+|--------------------------------------------------------------------------
+|
+| These client-side rules mirror the backend certificate validation as
+| closely as possible so users receive immediate feedback before submitting.
+|--------------------------------------------------------------------------
+*/
+
+const certificateFormSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(2, "Certificate title must be at least 2 characters")
+    .max(150, "Certificate title cannot exceed 150 characters"),
+
+  issuer: z
+    .string()
+    .trim()
+    .min(2, "Certificate issuer must be at least 2 characters")
+    .max(150, "Certificate issuer cannot exceed 150 characters"),
+
+  issueDate: z
+    .string()
+    .min(1, "Issue date is required")
+    .refine(
+      (value) => !Number.isNaN(new Date(value).getTime()),
+      "Please provide a valid issue date",
+    ),
+
+  credentialId: z
+    .string()
+    .trim()
+    .max(150, "Credential ID cannot exceed 150 characters"),
+
+  credentialUrl: z
+    .string()
+    .trim()
+    .max(2048, "Credential URL cannot exceed 2048 characters")
+    .refine((value) => {
+      if (!value) {
+        return true;
+      }
+
+      try {
+        const url = new URL(value);
+
+        return ["http:", "https:"].includes(url.protocol);
+      } catch {
+        return false;
+      }
+    }, "Please provide a valid HTTP or HTTPS URL"),
+
+  description: z
+    .string()
+    .trim()
+    .max(500, "Certificate description cannot exceed 500 characters"),
+
+  order: z
+    .number({
+      message: "Order must be a number",
+    })
+    .int("Order must be an integer")
+    .min(0, "Order cannot be negative")
+    .max(1000000, "Order cannot exceed 1000000"),
+
+  isVisible: z.boolean(),
+});
+
+/*
+|--------------------------------------------------------------------------
+| Default Form Values
+|--------------------------------------------------------------------------
+*/
+
+const getDefaultValues = (initialData) => ({
+  title: initialData?.title || "",
+  issuer: initialData?.issuer || "",
+
+  issueDate: initialData?.issueDate
+    ? new Date(initialData.issueDate).toISOString().slice(0, 10)
+    : "",
+
+  credentialId: initialData?.credentialId || "",
+  credentialUrl: initialData?.credentialUrl || "",
+  description: initialData?.description || "",
+  order: initialData?.order ?? 0,
+  isVisible: initialData?.isVisible ?? true,
+});
+
+/*
+|--------------------------------------------------------------------------
+| Certificate Form
+|--------------------------------------------------------------------------
+*/
 
 const CertificateForm = ({
   initialData = null,
@@ -29,6 +112,7 @@ const CertificateForm = ({
   isSubmitting = false,
 }) => {
   const [image, setImage] = useState(null);
+  const [existingImageUrl, setExistingImageUrl] = useState(null);
   const [removeImage, setRemoveImage] = useState(false);
   const [imageError, setImageError] = useState("");
 
@@ -38,337 +122,313 @@ const CertificateForm = ({
     reset,
     formState: { errors },
   } = useForm({
-    defaultValues,
+    resolver: zodResolver(certificateFormSchema),
+    defaultValues: getDefaultValues(initialData),
   });
 
-  useEffect(() => {
-    if (!initialData) {
-      reset(defaultValues);
-      setImage(null);
-      setRemoveImage(false);
-      return;
-    }
+  /*
+  |--------------------------------------------------------------------------
+  | Sync Form When Editing Another Certificate
+  |--------------------------------------------------------------------------
+  */
 
-    reset({
-      title: initialData.title || "",
-      issuer: initialData.issuer || "",
-      issueDate: initialData.issueDate
-        ? new Date(initialData.issueDate).toISOString().slice(0, 10)
-        : "",
-      credentialId: initialData.credentialId || "",
-      credentialUrl: initialData.credentialUrl || "",
-      description: initialData.description || "",
-      order: initialData.order ?? 0,
-      isVisible: initialData.isVisible ?? true,
-    });
+  useEffect(() => {
+    reset(getDefaultValues(initialData));
 
     setImage(null);
+    setImageError("");
     setRemoveImage(false);
+    setExistingImageUrl(initialData?.image?.url || null);
   }, [initialData, reset]);
 
-  const handleImageChange = (file, error, shouldRemove = false) => {
+  /*
+  |--------------------------------------------------------------------------
+  | Image State Handler
+  |--------------------------------------------------------------------------
+  |
+  | CertificateImageUploader communicates:
+  |
+  | file        -> newly selected image
+  | error       -> client-side validation error
+  | shouldRemove -> request to remove existing image
+  |--------------------------------------------------------------------------
+  */
+
+  const handleImageChange = (file, error = null, shouldRemove = false) => {
+    setImageError(error || "");
+
     if (error) {
-      setImageError(error);
       return;
     }
 
-    setImageError("");
-    setImage(file);
-    setRemoveImage(shouldRemove);
+    if (shouldRemove) {
+      setImage(null);
+      setRemoveImage(true);
+      return;
+    }
+
+    if (file) {
+      setImage(file);
+      setRemoveImage(false);
+    }
   };
 
-  const submitForm = async (data) => {
-    await onSubmit({
-      data,
-      image,
-      removeImage,
+  /*
+  |--------------------------------------------------------------------------
+  | Submit
+  |--------------------------------------------------------------------------
+  */
+
+  const submitForm = async (values) => {
+    const normalizedValues = {
+      ...values,
+
+      title: values.title.trim(),
+      issuer: values.issuer.trim(),
+      credentialId: values.credentialId.trim(),
+      credentialUrl: values.credentialUrl.trim(),
+      description: values.description.trim(),
+
+      order: Number(values.order),
+      isVisible: Boolean(values.isVisible),
+    };
+
+    await onSubmit(normalizedValues, {
+      file: image,
+      remove: removeImage,
+      existingUrl: existingImageUrl,
     });
   };
 
-  const inputClassName =
-    "h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/10";
-
-  const labelClassName = "mb-2 block text-sm font-medium";
-
   return (
-    <form onSubmit={handleSubmit(submitForm)} className="space-y-6">
-      <section className="rounded-xl border bg-card p-5">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-muted/30">
-            <FileText className="h-4 w-4" />
-          </div>
+    <form
+      onSubmit={handleSubmit(submitForm)}
+      className="space-y-6 rounded-xl border bg-card p-6"
+    >
+      {/* Header */}
+      <div>
+        <h2 className="text-lg font-semibold">
+          {initialData ? "Edit Certificate" : "Add Certificate"}
+        </h2>
 
-          <div>
-            <h2 className="text-sm font-semibold">Certificate Information</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Add professional certification and credential information.
+        </p>
+      </div>
 
-            <p className="text-xs text-muted-foreground">
-              Basic details about the certification.
+      {/* Form Fields */}
+      <div className="grid gap-5 md:grid-cols-2">
+        {/* Title */}
+        <div className="space-y-2">
+          <label htmlFor="certificate-title" className="text-sm font-medium">
+            Title
+          </label>
+
+          <Input
+            id="certificate-title"
+            placeholder="e.g. Full Stack Web Development"
+            maxLength={150}
+            disabled={isSubmitting}
+            {...register("title")}
+          />
+
+          {errors.title && (
+            <p className="text-sm text-destructive" role="alert">
+              {errors.title.message}
             </p>
-          </div>
+          )}
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2">
-          <div>
-            <label htmlFor="title" className={labelClassName}>
-              Certificate title
-            </label>
+        {/* Issuer */}
+        <div className="space-y-2">
+          <label htmlFor="certificate-issuer" className="text-sm font-medium">
+            Issuer
+          </label>
 
-            <input
-              id="title"
-              {...register("title", {
-                required: "Certificate title is required",
-                minLength: {
-                  value: 2,
-                  message: "Title must be at least 2 characters",
-                },
-                maxLength: {
-                  value: 150,
-                  message: "Title cannot exceed 150 characters",
-                },
-              })}
-              placeholder="AWS Certified Developer"
-              className={inputClassName}
-              disabled={isSubmitting}
-            />
+          <Input
+            id="certificate-issuer"
+            placeholder="e.g. Coursera"
+            maxLength={150}
+            disabled={isSubmitting}
+            {...register("issuer")}
+          />
 
-            {errors.title && (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.title.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="issuer" className={labelClassName}>
-              Issuer
-            </label>
-
-            <input
-              id="issuer"
-              {...register("issuer", {
-                required: "Issuer is required",
-                minLength: {
-                  value: 2,
-                  message: "Issuer must be at least 2 characters",
-                },
-                maxLength: {
-                  value: 150,
-                  message: "Issuer cannot exceed 150 characters",
-                },
-              })}
-              placeholder="Amazon Web Services"
-              className={inputClassName}
-              disabled={isSubmitting}
-            />
-
-            {errors.issuer && (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.issuer.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="issueDate" className={labelClassName}>
-              Issue date
-            </label>
-
-            <div className="relative">
-              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-              <input
-                id="issueDate"
-                type="date"
-                {...register("issueDate", {
-                  required: "Issue date is required",
-                })}
-                className={`${inputClassName} pl-10`}
-                disabled={isSubmitting}
-              />
-            </div>
-
-            {errors.issueDate && (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.issueDate.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="credentialId" className={labelClassName}>
-              Credential ID
-            </label>
-
-            <input
-              id="credentialId"
-              {...register("credentialId")}
-              placeholder="ABC-123456"
-              className={inputClassName}
-              disabled={isSubmitting}
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label htmlFor="credentialUrl" className={labelClassName}>
-              Credential URL
-            </label>
-
-            <div className="relative">
-              <ExternalLink className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-              <input
-                id="credentialUrl"
-                type="url"
-                {...register("credentialUrl", {
-                  validate: (value) => {
-                    if (!value) return true;
-
-                    try {
-                      const url = new URL(value);
-
-                      if (!["http:", "https:"].includes(url.protocol)) {
-                        return "URL must use HTTP or HTTPS";
-                      }
-
-                      return true;
-                    } catch {
-                      return "Please provide a valid URL";
-                    }
-                  },
-                })}
-                placeholder="https://example.com/verify"
-                className={`${inputClassName} pl-10`}
-                disabled={isSubmitting}
-              />
-            </div>
-
-            {errors.credentialUrl && (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.credentialUrl.message}
-              </p>
-            )}
-          </div>
-
-          <div className="md:col-span-2">
-            <label htmlFor="description" className={labelClassName}>
-              Description
-            </label>
-
-            <textarea
-              id="description"
-              rows={4}
-              {...register("description", {
-                maxLength: {
-                  value: 500,
-                  message: "Description cannot exceed 500 characters",
-                },
-              })}
-              placeholder="Briefly describe what this certification demonstrates..."
-              className="w-full resize-y rounded-lg border bg-background px-3 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/10"
-              disabled={isSubmitting}
-            />
-
-            {errors.description && (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.description.message}
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-xl border bg-card p-5">
-        <div className="mb-5">
-          <h2 className="text-sm font-semibold">Display Settings</h2>
-
-          <p className="text-xs text-muted-foreground">
-            Control how this certificate appears on your public portfolio.
-          </p>
+          {errors.issuer && (
+            <p className="text-sm text-destructive" role="alert">
+              {errors.issuer.message}
+            </p>
+          )}
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2">
-          <div>
-            <label htmlFor="order" className={labelClassName}>
-              Display order
-            </label>
+        {/* Issue Date */}
+        <div className="space-y-2">
+          <label
+            htmlFor="certificate-issue-date"
+            className="text-sm font-medium"
+          >
+            Issue Date
+          </label>
 
-            <input
-              id="order"
-              type="number"
-              min="0"
-              {...register("order", {
-                valueAsNumber: true,
-                min: {
-                  value: 0,
-                  message: "Order cannot be negative",
-                },
-              })}
-              className={inputClassName}
-              disabled={isSubmitting}
-            />
+          <Input
+            id="certificate-issue-date"
+            type="date"
+            disabled={isSubmitting}
+            {...register("issueDate")}
+          />
 
-            {errors.order && (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.order.message}
-              </p>
-            )}
-          </div>
+          {errors.issueDate && (
+            <p className="text-sm text-destructive" role="alert">
+              {errors.issueDate.message}
+            </p>
+          )}
+        </div>
 
-          <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-            <input
-              type="checkbox"
-              {...register("isVisible")}
-              disabled={isSubmitting}
-              className="h-4 w-4"
-            />
+        {/* Credential ID */}
+        <div className="space-y-2">
+          <label
+            htmlFor="certificate-credential-id"
+            className="text-sm font-medium"
+          >
+            Credential ID
+          </label>
 
-            <div>
-              <p className="text-sm font-medium">Visible on portfolio</p>
+          <Input
+            id="certificate-credential-id"
+            placeholder="Optional"
+            maxLength={150}
+            disabled={isSubmitting}
+            {...register("credentialId")}
+          />
 
-              <p className="text-xs text-muted-foreground">
-                Show this certificate publicly.
-              </p>
-            </div>
+          {errors.credentialId && (
+            <p className="text-sm text-destructive" role="alert">
+              {errors.credentialId.message}
+            </p>
+          )}
+        </div>
+
+        {/* Credential URL */}
+        <div className="space-y-2 md:col-span-2">
+          <label
+            htmlFor="certificate-credential-url"
+            className="text-sm font-medium"
+          >
+            Credential URL
+          </label>
+
+          <Input
+            id="certificate-credential-url"
+            type="url"
+            placeholder="https://example.com/credential"
+            maxLength={2048}
+            disabled={isSubmitting}
+            {...register("credentialUrl")}
+          />
+
+          {errors.credentialUrl && (
+            <p className="text-sm text-destructive" role="alert">
+              {errors.credentialUrl.message}
+            </p>
+          )}
+        </div>
+
+        {/* Description */}
+        <div className="space-y-2 md:col-span-2">
+          <label
+            htmlFor="certificate-description"
+            className="text-sm font-medium"
+          >
+            Description
+          </label>
+
+          <Textarea
+            id="certificate-description"
+            placeholder="Optional description..."
+            maxLength={500}
+            rows={4}
+            disabled={isSubmitting}
+            {...register("description")}
+          />
+
+          {errors.description && (
+            <p className="text-sm text-destructive" role="alert">
+              {errors.description.message}
+            </p>
+          )}
+        </div>
+
+        {/* Display Order */}
+        <div className="space-y-2">
+          <label htmlFor="certificate-order" className="text-sm font-medium">
+            Display Order
+          </label>
+
+          <Input
+            id="certificate-order"
+            type="number"
+            min={0}
+            max={1000000}
+            step={1}
+            disabled={isSubmitting}
+            {...register("order", {
+              valueAsNumber: true,
+            })}
+          />
+
+          {errors.order && (
+            <p className="text-sm text-destructive" role="alert">
+              {errors.order.message}
+            </p>
+          )}
+        </div>
+
+        {/* Visibility */}
+        <div className="flex items-center gap-3 self-end pb-2">
+          <input
+            id="certificate-visible"
+            type="checkbox"
+            disabled={isSubmitting}
+            className="h-4 w-4 rounded border-input"
+            {...register("isVisible")}
+          />
+
+          <label htmlFor="certificate-visible" className="text-sm font-medium">
+            Visible on public portfolio
           </label>
         </div>
-      </section>
+      </div>
 
-      <section className="rounded-xl border bg-card p-5">
-        <CertificateImageUploader
-          existingUrl={initialData?.image?.url || null}
-          value={image}
-          onChange={handleImageChange}
-          disabled={isSubmitting}
-        />
+      {/* Certificate Image */}
+      <CertificateImageUploader
+        existingUrl={existingImageUrl}
+        onChange={handleImageChange}
+        disabled={isSubmitting}
+      />
 
-        {imageError && (
-          <p className="mt-2 text-xs text-destructive">{imageError}</p>
-        )}
-      </section>
+      {imageError && (
+        <p className="text-sm text-destructive" role="alert">
+          {imageError}
+        </p>
+      )}
 
+      {/* Actions */}
       <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:justify-end">
-        <button
+        <Button
           type="button"
-          onClick={onCancel}
+          variant="outline"
           disabled={isSubmitting}
-          className="h-10 rounded-lg border px-4 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+          onClick={onCancel}
         >
           Cancel
-        </button>
+        </Button>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSubmitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-
-          {initialData ? "Save changes" : "Create certificate"}
-        </button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting
+            ? "Saving..."
+            : initialData
+              ? "Update Certificate"
+              : "Create Certificate"}
+        </Button>
       </div>
     </form>
   );

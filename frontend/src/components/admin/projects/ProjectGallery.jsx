@@ -7,6 +7,9 @@ import { deleteProjectImage, uploadProjectImages } from "@/api/projectApi";
 import { Button } from "@/components/ui/button";
 
 const MAX_GALLERY_IMAGES = 10;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const ProjectGallery = ({
   projectId,
@@ -15,21 +18,26 @@ const ProjectGallery = ({
   disabled = false,
 }) => {
   const inputRef = useRef(null);
+
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [deletingImageUrl, setDeletingImageUrl] = useState(null);
+  const [deletingImageId, setDeletingImageId] = useState(null);
 
   const currentImages = Array.isArray(images) ? images : [];
 
   const totalImages = currentImages.length + selectedFiles.length;
 
-  const remainingSlots = MAX_GALLERY_IMAGES - currentImages.length;
+  const remainingSlots = Math.max(
+    0,
+    MAX_GALLERY_IMAGES - currentImages.length - selectedFiles.length,
+  );
 
   const handleSelect = () => {
-    if (remainingSlots <= 0) {
+    if (currentImages.length + selectedFiles.length >= MAX_GALLERY_IMAGES) {
       toast.error(
         `A project can have a maximum of ${MAX_GALLERY_IMAGES} gallery images.`,
       );
+
       return;
     }
 
@@ -38,6 +46,12 @@ const ProjectGallery = ({
 
   const handleFileChange = (event) => {
     const files = Array.from(event.target.files || []);
+
+    /*
+     * Reset the input so selecting the same file again
+     * triggers onChange.
+     */
+    event.target.value = "";
 
     if (!files.length) {
       return;
@@ -49,19 +63,44 @@ const ProjectGallery = ({
     if (availableSlots <= 0) {
       toast.error(`You can only have ${MAX_GALLERY_IMAGES} gallery images.`);
 
-      event.target.value = "";
       return;
     }
 
-    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    /*
+     * Validate the same MIME types accepted by the backend
+     * upload middleware.
+     */
+    const invalidTypeFiles = files.filter(
+      (file) => !ALLOWED_IMAGE_TYPES.includes(file.type),
+    );
 
-    if (imageFiles.length !== files.length) {
-      toast.error("Only image files can be added to the gallery.");
+    if (invalidTypeFiles.length > 0) {
+      toast.error("Only JPEG, PNG, and WebP images are allowed.");
     }
 
-    const filesToAdd = imageFiles.slice(0, availableSlots);
+    const validTypeFiles = files.filter((file) =>
+      ALLOWED_IMAGE_TYPES.includes(file.type),
+    );
 
-    if (filesToAdd.length < imageFiles.length) {
+    /*
+     * Prevent unnecessarily selecting files larger than the
+     * backend's 5 MB image limit.
+     */
+    const oversizedFiles = validTypeFiles.filter(
+      (file) => file.size > MAX_IMAGE_SIZE,
+    );
+
+    if (oversizedFiles.length > 0) {
+      toast.error("Each gallery image must be 5 MB or smaller.");
+    }
+
+    const validFiles = validTypeFiles.filter(
+      (file) => file.size <= MAX_IMAGE_SIZE,
+    );
+
+    const filesToAdd = validFiles.slice(0, availableSlots);
+
+    if (filesToAdd.length < validFiles.length) {
       toast.error(
         `Only ${availableSlots} more gallery image${
           availableSlots === 1 ? "" : "s"
@@ -69,9 +108,11 @@ const ProjectGallery = ({
       );
     }
 
-    setSelectedFiles((previous) => [...previous, ...filesToAdd]);
+    if (!filesToAdd.length) {
+      return;
+    }
 
-    event.target.value = "";
+    setSelectedFiles((previous) => [...previous, ...filesToAdd]);
   };
 
   const handleRemoveSelected = (index) => {
@@ -81,7 +122,7 @@ const ProjectGallery = ({
   };
 
   const handleUpload = async () => {
-    if (!selectedFiles.length) {
+    if (!selectedFiles.length || !projectId) {
       return;
     }
 
@@ -107,13 +148,37 @@ const ProjectGallery = ({
     }
   };
 
-  const handleDelete = async (imageUrl) => {
-    setDeletingImageUrl(imageUrl);
+  const handleDelete = async (image) => {
+    /*
+     * The backend deletes the Cloudinary asset using its publicId.
+     *
+     * Do not use the image URL as the deletion identifier.
+     */
+    const publicId =
+      typeof image === "object" && image !== null ? image.publicId : null;
+
+    const imageUrl = typeof image === "string" ? image : image?.url;
+
+    if (!publicId) {
+      toast.error(
+        "This gallery image cannot be deleted because its Cloudinary public ID is missing.",
+      );
+
+      return;
+    }
+
+    if (!imageUrl) {
+      toast.error("Gallery image URL is missing.");
+
+      return;
+    }
+
+    setDeletingImageId(publicId);
 
     try {
       await deleteProjectImage({
         id: projectId,
-        imageUrl,
+        publicId,
       });
 
       toast.success("Gallery image deleted successfully.");
@@ -124,7 +189,7 @@ const ProjectGallery = ({
         error?.response?.data?.message || "Failed to delete gallery image.",
       );
     } finally {
-      setDeletingImageUrl(null);
+      setDeletingImageId(null);
     }
   };
 
@@ -133,10 +198,14 @@ const ProjectGallery = ({
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/avif"
+        accept="image/jpeg,image/png,image/webp"
         multiple
         onChange={handleFileChange}
-        disabled={disabled || isUploading || remainingSlots <= 0}
+        disabled={
+          disabled ||
+          isUploading ||
+          currentImages.length + selectedFiles.length >= MAX_GALLERY_IMAGES
+        }
         className="hidden"
       />
 
@@ -161,15 +230,20 @@ const ProjectGallery = ({
           {currentImages.map((image, index) => {
             const imageUrl = typeof image === "string" ? image : image?.url;
 
+            const publicId =
+              typeof image === "object" && image !== null
+                ? image.publicId
+                : null;
+
             if (!imageUrl) {
               return null;
             }
 
-            const isDeleting = deletingImageUrl === imageUrl;
+            const isDeleting = deletingImageId === publicId;
 
             return (
               <div
-                key={`${imageUrl}-${index}`}
+                key={`${publicId || imageUrl}-${index}`}
                 className="group overflow-hidden rounded-xl border bg-card"
               >
                 <div className="relative aspect-video overflow-hidden bg-muted">
@@ -184,8 +258,10 @@ const ProjectGallery = ({
                       type="button"
                       variant="destructive"
                       size="icon"
-                      onClick={() => handleDelete(imageUrl)}
-                      disabled={disabled || isDeleting || isUploading}
+                      onClick={() => handleDelete(image)}
+                      disabled={
+                        disabled || isDeleting || isUploading || !publicId
+                      }
                       aria-label={`Delete gallery image ${index + 1}`}
                     >
                       {isDeleting ? (
@@ -295,7 +371,8 @@ const ProjectGallery = ({
       )}
 
       <p className="text-xs text-muted-foreground">
-        You can add up to {MAX_GALLERY_IMAGES} gallery images to a project.
+        JPEG, PNG, or WebP · Maximum 5 MB each · Up to {MAX_GALLERY_IMAGES}{" "}
+        gallery images.
       </p>
     </div>
   );
@@ -313,6 +390,7 @@ const SelectedImage = ({ file, index, onRemove, disabled = false }) => {
       URL.revokeObjectURL(objectUrl);
     };
   }, [file]);
+
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
       <div className="relative aspect-video overflow-hidden bg-muted">

@@ -34,6 +34,7 @@ const certificateSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: null,
+      maxlength: [2048, "Credential URL cannot exceed 2048 characters"],
       validate: {
         validator: (value) => {
           if (!value) return true;
@@ -55,28 +56,41 @@ const certificateSchema = new mongoose.Schema(
         type: String,
         trim: true,
         default: null,
+        maxlength: [
+          2048,
+          "Certificate image URL cannot exceed 2048 characters",
+        ],
       },
 
       publicId: {
         type: String,
         trim: true,
         default: null,
+        maxlength: [
+          500,
+          "Certificate image public ID cannot exceed 500 characters",
+        ],
       },
 
       width: {
         type: Number,
         default: null,
+        min: [1, "Certificate image width must be greater than 0"],
+        max: [10000, "Certificate image width cannot exceed 10000 pixels"],
       },
 
       height: {
         type: Number,
         default: null,
+        min: [1, "Certificate image height must be greater than 0"],
+        max: [10000, "Certificate image height cannot exceed 10000 pixels"],
       },
 
       format: {
         type: String,
         trim: true,
         default: null,
+        maxlength: [20, "Certificate image format cannot exceed 20 characters"],
       },
     },
 
@@ -91,6 +105,7 @@ const certificateSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: [0, "Order cannot be negative"],
+      max: [1000000, "Order cannot exceed 1000000"],
     },
 
     isVisible: {
@@ -103,11 +118,13 @@ const certificateSchema = new mongoose.Schema(
   }
 );
 
+// Used when retrieving certificates for the public portfolio.
 certificateSchema.index({
   isVisible: 1,
   order: 1,
 });
 
+// Useful when filtering/grouping certificates by issuer.
 certificateSchema.index({
   issuer: 1,
 });

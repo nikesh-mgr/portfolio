@@ -2,28 +2,36 @@ import {
   uploadToCloudinary,
   deleteFromCloudinary,
 } from "../utils/cloudinaryUpload.js";
-import ApiError from "../utils/apiError.js";
+
+import ApiError from "../utils/ApiError.js";
+
 import {
   createProject as createProjectService,
   getAllProjects as getAllProjectsService,
+  getFeaturedProjects as getFeaturedProjectsService,
   getProjectBySlug as getProjectBySlugService,
   getProjectById as getProjectByIdService,
   updateProject as updateProjectService,
   deleteProject as deleteProjectService,
-} from "../services/projectService.js";
-import {
   addProjectImages as addProjectImagesService,
   removeProjectImage as removeProjectImageService,
 } from "../services/projectService.js";
-/**
- * Create a new project.
- */
+
+/*
+|--------------------------------------------------------------------------
+| Create Project
+|--------------------------------------------------------------------------
+|
+| Admin only.
+|
+*/
+
 export const createProject = async (req, res) => {
   let uploadedImage = null;
 
   try {
-    /**
-     * Upload project image to Cloudinary.
+    /*
+     * Upload primary image first.
      */
     if (req.file) {
       uploadedImage = await uploadToCloudinary(
@@ -32,15 +40,15 @@ export const createProject = async (req, res) => {
       );
     }
 
-    /**
+    /*
      * Prepare project data.
      */
     const projectData = {
       ...req.body,
     };
 
-    /**
-     * Add Cloudinary image information.
+    /*
+     * Store Cloudinary references only.
      */
     if (uploadedImage) {
       projectData.image = {
@@ -49,8 +57,8 @@ export const createProject = async (req, res) => {
       };
     }
 
-    /**
-     * Create project in MongoDB.
+    /*
+     * Create project.
      */
     const project = await createProjectService(projectData);
 
@@ -60,16 +68,15 @@ export const createProject = async (req, res) => {
       project,
     });
   } catch (error) {
-    /**
-     * If Cloudinary upload succeeded but
-     * MongoDB creation failed, delete the
-     * uploaded image.
+    /*
+     * Remove uploaded Cloudinary image
+     * if MongoDB creation fails.
      */
     if (uploadedImage?.public_id) {
       try {
         await deleteFromCloudinary(uploadedImage.public_id);
       } catch {
-        // Keep original error.
+        // Preserve original error.
       }
     }
 
@@ -77,17 +84,21 @@ export const createProject = async (req, res) => {
   }
 };
 
-/**
- * Get all projects.
- *
- * Public endpoint.
- */
-export const getAllProjects = async (req, res) => {
-  const publishedOnly = req.query.published === "true";
+/*
+|--------------------------------------------------------------------------
+| Get All Projects
+|--------------------------------------------------------------------------
+|
+| Public endpoint.
+|
+| GET /api/projects
+|
+| Returns every project.
+|
+*/
 
-  const projects = await getAllProjectsService({
-    publishedOnly,
-  });
+export const getAllProjects = async (req, res) => {
+  const projects = await getAllProjectsService();
 
   res.status(200).json({
     success: true,
@@ -96,11 +107,66 @@ export const getAllProjects = async (req, res) => {
   });
 };
 
-/**
- * Get project by slug.
- *
- * Public endpoint.
- */
+/*
+|--------------------------------------------------------------------------
+| Get Featured Projects
+|--------------------------------------------------------------------------
+|
+| Public endpoint.
+|
+| GET /api/projects/featured
+|
+| Returns only projects where:
+|
+| featured === true
+|
+*/
+
+export const getFeaturedProjects = async (req, res) => {
+  const projects = await getFeaturedProjectsService();
+
+  res.status(200).json({
+    success: true,
+    count: projects.length,
+    projects,
+  });
+};
+
+/*
+|--------------------------------------------------------------------------
+| Get All Admin Projects
+|--------------------------------------------------------------------------
+|
+| Admin only.
+|
+| GET /api/projects/admin/all
+|
+| Returns every project.
+|
+| This endpoint is kept separate from the public endpoint
+| so the admin API has a clear dedicated route.
+|
+*/
+
+export const getAllAdminProjects = async (req, res) => {
+  const projects = await getAllProjectsService();
+
+  res.status(200).json({
+    success: true,
+    count: projects.length,
+    projects,
+  });
+};
+
+/*
+|--------------------------------------------------------------------------
+| Get Project By Slug
+|--------------------------------------------------------------------------
+|
+| Public endpoint.
+|
+*/
+
 export const getProjectBySlug = async (req, res) => {
   const project = await getProjectBySlugService(req.params.slug);
 
@@ -110,11 +176,15 @@ export const getProjectBySlug = async (req, res) => {
   });
 };
 
-/**
- * Get project by ID.
- *
- * Public endpoint.
- */
+/*
+|--------------------------------------------------------------------------
+| Get Project By ID
+|--------------------------------------------------------------------------
+|
+| Public endpoint.
+|
+*/
+
 export const getProjectById = async (req, res) => {
   const project = await getProjectByIdService(req.params.id);
 
@@ -124,32 +194,33 @@ export const getProjectById = async (req, res) => {
   });
 };
 
-/**
- * Update project.
- *
- * Admin only.
- */
+/*
+|--------------------------------------------------------------------------
+| Update Project
+|--------------------------------------------------------------------------
+|
+| Admin only.
+|
+*/
+
 export const updateProject = async (req, res) => {
   let uploadedImage = null;
 
   try {
-    /**
-     * Get existing project before updating.
-     *
-     * We need the old image's publicId
-     * so it can be removed from Cloudinary.
+    /*
+     * Retrieve existing project.
      */
     const existingProject = await getProjectByIdService(req.params.id);
 
-    /**
-     * Prepare updated project data.
+    /*
+     * Prepare update data.
      */
     const projectData = {
       ...req.body,
     };
 
-    /**
-     * Upload new image if provided.
+    /*
+     * Upload replacement image if provided.
      */
     if (req.file) {
       uploadedImage = await uploadToCloudinary(
@@ -163,28 +234,23 @@ export const updateProject = async (req, res) => {
       };
     }
 
-    /**
-     * Update MongoDB.
-     *
-     * Service returns both:
-     * - updated project
-     * - old image information
+    /*
+     * Update project.
      */
     const { project, oldImage } = await updateProjectService(
-      req.params.id,
+      existingProject._id.toString(),
       projectData
     );
 
-    /**
-     * Delete old Cloudinary image
-     * only after MongoDB update succeeds.
+    /*
+     * Remove old Cloudinary image after
+     * successful database update.
      */
     if (req.file && oldImage?.publicId) {
       try {
         await deleteFromCloudinary(oldImage.publicId);
       } catch {
-        // Do not fail the successful update
-        // because of Cloudinary cleanup.
+        // Database update already succeeded.
       }
     }
 
@@ -194,16 +260,14 @@ export const updateProject = async (req, res) => {
       project,
     });
   } catch (error) {
-    /**
-     * If the NEW image was uploaded but
-     * the database update failed,
-     * delete the new Cloudinary image.
+    /*
+     * Remove newly uploaded image if update failed.
      */
     if (uploadedImage?.public_id) {
       try {
         await deleteFromCloudinary(uploadedImage.public_id);
       } catch {
-        // Keep original error.
+        // Preserve original error.
       }
     }
 
@@ -211,26 +275,30 @@ export const updateProject = async (req, res) => {
   }
 };
 
-/**
- * Delete project.
- *
- * Admin only.
- */
+/*
+|--------------------------------------------------------------------------
+| Delete Project
+|--------------------------------------------------------------------------
+|
+| Admin only.
+|
+*/
+
 export const deleteProject = async (req, res) => {
   const deletedProject = await deleteProjectService(req.params.id);
 
-  /**
-   * Delete main project image.
+  /*
+   * Delete primary image.
    */
   if (deletedProject.image?.publicId) {
     try {
       await deleteFromCloudinary(deletedProject.image.publicId);
     } catch {
-      // MongoDB deletion already succeeded.
+      // Database deletion already succeeded.
     }
   }
 
-  /**
+  /*
    * Delete gallery images.
    */
   if (deletedProject.images?.length) {
@@ -242,7 +310,7 @@ export const deleteProject = async (req, res) => {
       try {
         await deleteFromCloudinary(image.publicId);
       } catch {
-        // Continue with remaining images.
+        // Continue cleaning remaining images.
       }
     }
   }
@@ -253,11 +321,15 @@ export const deleteProject = async (req, res) => {
   });
 };
 
-/**
- * Add multiple gallery images.
- *
- * Admin only.
- */
+/*
+|--------------------------------------------------------------------------
+| Add Project Images
+|--------------------------------------------------------------------------
+|
+| Admin only.
+|
+*/
+
 export const addProjectImages = async (req, res) => {
   const uploadedImages = [];
 
@@ -266,8 +338,8 @@ export const addProjectImages = async (req, res) => {
       throw new ApiError(400, "At least one image is required");
     }
 
-    /**
-     * Upload every image to Cloudinary.
+    /*
+     * Upload gallery images.
      */
     for (const file of req.files) {
       const uploaded = await uploadToCloudinary(
@@ -281,8 +353,8 @@ export const addProjectImages = async (req, res) => {
       });
     }
 
-    /**
-     * Save Cloudinary information in MongoDB.
+    /*
+     * Save image references.
      */
     const project = await addProjectImagesService(
       req.params.id,
@@ -295,15 +367,18 @@ export const addProjectImages = async (req, res) => {
       project,
     });
   } catch (error) {
-    /**
-     * If MongoDB fails after Cloudinary
-     * uploads, clean up all uploaded images.
+    /*
+     * Cleanup Cloudinary uploads if MongoDB fails.
      */
     for (const image of uploadedImages) {
+      if (!image.publicId) {
+        continue;
+      }
+
       try {
         await deleteFromCloudinary(image.publicId);
       } catch {
-        // Keep original error.
+        // Preserve original error.
       }
     }
 
@@ -311,26 +386,30 @@ export const addProjectImages = async (req, res) => {
   }
 };
 
-/**
- * Remove a gallery image.
- *
- * Admin only.
- */
+/*
+|--------------------------------------------------------------------------
+| Remove Project Image
+|--------------------------------------------------------------------------
+|
+| Admin only.
+|
+*/
+
 export const removeProjectImage = async (req, res) => {
   const { publicId } = req.body;
 
-  if (!publicId) {
+  if (typeof publicId !== "string" || !publicId.trim()) {
     throw new ApiError(400, "Cloudinary publicId is required");
   }
 
   const { project, removedImage } = await removeProjectImageService(
     req.params.id,
-    publicId
+    publicId.trim()
   );
 
-  /**
-   * Delete image from Cloudinary after
-   * MongoDB update succeeds.
+  /*
+   * Delete Cloudinary image after
+   * successful MongoDB update.
    */
   if (removedImage?.publicId) {
     try {

@@ -4,21 +4,23 @@ import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
-import { getPublishedProjects } from "@/api/projectApi";
+import { getProjects } from "@/api/projectApi";
 
 const FeaturedProjects = () => {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["projects", "published"],
-    queryFn: getPublishedProjects,
+    queryKey: ["projects"],
+    queryFn: getProjects,
   });
 
   const projects = data?.projects || data?.data || [];
 
-  const sortedProjects = [...projects]
+  const featuredProjects = projects
+    .filter((project) => project.featured)
     .sort((firstProject, secondProject) => {
       return (
-        Number(Boolean(secondProject.featured)) -
-        Number(Boolean(firstProject.featured))
+        (firstProject.order ?? 0) - (secondProject.order ?? 0) ||
+        new Date(secondProject.createdAt || 0) -
+          new Date(firstProject.createdAt || 0)
       );
     })
     .slice(0, 3);
@@ -82,23 +84,25 @@ const FeaturedProjects = () => {
         )}
 
         {/* Empty */}
-        {!isLoading && !isError && sortedProjects.length === 0 && (
+        {!isLoading && !isError && featuredProjects.length === 0 && (
           <div className="mt-12 rounded-xl border border-dashed p-10 text-center">
             <FolderKanban className="mx-auto size-8 text-muted-foreground" />
 
-            <h3 className="mt-4 font-semibold">Projects are coming soon</h3>
+            <h3 className="mt-4 font-semibold">
+              Featured projects are coming soon
+            </h3>
 
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              I'm currently preparing the project showcase. Check back soon for
-              new work.
+              I'm currently preparing the featured project showcase. Check back
+              soon for new work.
             </p>
           </div>
         )}
 
-        {/* Projects */}
-        {!isLoading && !isError && sortedProjects.length > 0 && (
+        {/* Featured Projects */}
+        {!isLoading && !isError && featuredProjects.length > 0 && (
           <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {sortedProjects.map((project, index) => (
+            {featuredProjects.map((project, index) => (
               <ProjectCard
                 key={project._id || project.id || project.slug}
                 project={project}

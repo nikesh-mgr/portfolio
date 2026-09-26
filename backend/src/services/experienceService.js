@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Experience from "../models/Experience.js";
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/ApiError.js";
 
 /**
  * Create a new experience.

@@ -1,5 +1,14 @@
 import mongoose from "mongoose";
 
+/*
+|--------------------------------------------------------------------------
+| URL validation
+|--------------------------------------------------------------------------
+|
+| Only HTTP and HTTPS URLs are accepted.
+|
+*/
+
 const urlValidator = {
   validator: (value) => {
     if (!value) return true;
@@ -16,13 +25,24 @@ const urlValidator = {
   message: "Please provide a valid HTTP or HTTPS URL",
 };
 
+/*
+|--------------------------------------------------------------------------
+| Slug generation
+|--------------------------------------------------------------------------
+|
+| Example:
+| "My Portfolio App" → "my-portfolio-app"
+|
+*/
+
 const createSlug = (title) => {
   return title
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 };
 
 const projectSchema = new mongoose.Schema(
@@ -35,11 +55,15 @@ const projectSchema = new mongoose.Schema(
       maxlength: [100, "Project title cannot exceed 100 characters"],
     },
 
+    /*
+     * Unique project slug.
+     */
     slug: {
       type: String,
       unique: true,
       lowercase: true,
       trim: true,
+      maxlength: [120, "Project slug cannot exceed 120 characters"],
     },
 
     shortDescription: {
@@ -56,14 +80,36 @@ const projectSchema = new mongoose.Schema(
       maxlength: [5000, "Project description cannot exceed 5000 characters"],
     },
 
+    /*
+     * Technologies used by the project.
+     */
     technologies: {
       type: [String],
       required: [true, "At least one technology is required"],
-      validate: {
-        validator: (technologies) =>
-          Array.isArray(technologies) && technologies.length > 0,
-        message: "At least one technology is required",
-      },
+
+      validate: [
+        {
+          validator: (technologies) =>
+            Array.isArray(technologies) &&
+            technologies.length >= 1 &&
+            technologies.length <= 30,
+
+          message: "Project must contain between 1 and 30 technologies",
+        },
+
+        {
+          validator: (technologies) =>
+            technologies.every(
+              (technology) =>
+                typeof technology === "string" &&
+                technology.trim().length >= 1 &&
+                technology.trim().length <= 50
+            ),
+
+          message:
+            "Each technology must be a non-empty string of at most 50 characters",
+        },
+      ],
     },
 
     category: {
@@ -74,6 +120,9 @@ const projectSchema = new mongoose.Schema(
       maxlength: [50, "Category cannot exceed 50 characters"],
     },
 
+    /*
+     * Primary project image.
+     */
     image: {
       url: {
         type: String,
@@ -86,9 +135,15 @@ const projectSchema = new mongoose.Schema(
         type: String,
         default: null,
         trim: true,
+        maxlength: [500, "Image public ID cannot exceed 500 characters"],
       },
     },
 
+    /*
+     * Additional project images.
+     *
+     * Maximum: 10
+     */
     images: {
       type: [
         {
@@ -103,11 +158,18 @@ const projectSchema = new mongoose.Schema(
             type: String,
             required: true,
             trim: true,
+            maxlength: [500, "Image public ID cannot exceed 500 characters"],
           },
         },
       ],
 
       default: [],
+
+      validate: {
+        validator: (images) => Array.isArray(images) && images.length <= 10,
+
+        message: "A project cannot contain more than 10 additional images",
+      },
     },
 
     githubUrl: {
@@ -124,6 +186,10 @@ const projectSchema = new mongoose.Schema(
       validate: urlValidator,
     },
 
+    /*
+     * Controls whether the project appears
+     * in the Home featured section.
+     */
     featured: {
       type: Boolean,
       default: false,
@@ -135,14 +201,13 @@ const projectSchema = new mongoose.Schema(
       default: "completed",
     },
 
+    /*
+     * Controls project ordering.
+     */
     order: {
       type: Number,
       default: 0,
       min: [0, "Order cannot be negative"],
-    },
-    published: {
-      type: Boolean,
-      default: false,
     },
   },
 
@@ -151,23 +216,42 @@ const projectSchema = new mongoose.Schema(
   }
 );
 
-/**
- * Generate slug automatically before validation.
- *
- * Do not use next() here.
- */
+/*
+|--------------------------------------------------------------------------
+| Automatic slug generation
+|--------------------------------------------------------------------------
+*/
+
 projectSchema.pre("validate", function () {
   if (this.isModified("title") && this.title) {
-    this.slug = createSlug(this.title);
+    const generatedSlug = createSlug(this.title);
+
+    if (!generatedSlug) {
+      this.invalidate(
+        "slug",
+        "Project title must contain at least one letter or number"
+      );
+
+      return;
+    }
+
+    this.slug = generatedSlug;
   }
 });
 
-/**
- * Indexes.
- *
- * slug already has unique: true above.
- * Do not add another slug index.
- */
+/*
+|--------------------------------------------------------------------------
+| Indexes
+|--------------------------------------------------------------------------
+|
+| featured + order:
+| Supports featured-project queries and ordering.
+|
+| category:
+| Supports category filtering.
+|
+*/
+
 projectSchema.index({
   featured: 1,
   order: 1,

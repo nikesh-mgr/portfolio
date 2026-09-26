@@ -30,6 +30,7 @@ import AdminSkill from "@/pages/admin/Skill";
 import AdminMessages from "@/pages/admin/Messages";
 import AdminResume from "@/pages/admin/Resume";
 import AdminSettings from "@/pages/admin/Settings";
+import CreateAdmin from "@/components/auth/CreateAdmin";
 const router = createBrowserRouter([
   {
     element: <PublicLayout />,
@@ -79,6 +80,10 @@ const router = createBrowserRouter([
           {
             path: "/auth/login",
             element: <Login />,
+          },
+          {
+            path: "/auth/create-admin",
+            element: <CreateAdmin />,
           },
         ],
       },

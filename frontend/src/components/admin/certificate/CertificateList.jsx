@@ -1,61 +1,76 @@
-import { Award, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 
 import CertificateCard from "./CertificateCard";
+import { Input } from "@/components/ui/input";
 
-const CertificateList = ({
-  certificates,
-  search,
-  onSearchChange,
-  onEdit,
-  onDelete,
-}) => {
-  const filteredCertificates = certificates.filter((certificate) => {
-    const query = search.trim().toLowerCase();
+const CertificateList = ({ certificates = [], onEdit, onDelete }) => {
+  const [searchQuery, setSearchQuery] = useState("");
 
-    if (!query) return true;
+  const filteredCertificates = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
 
-    return [certificate.title, certificate.issuer, certificate.credentialId]
-      .filter(Boolean)
-      .some((value) => value.toLowerCase().includes(query));
-  });
+    if (!normalizedQuery) {
+      return certificates;
+    }
 
-  if (certificates.length === 0) {
-    return (
-      <div className="flex min-h-72 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border bg-muted/30">
-          <Award className="h-5 w-5 text-muted-foreground" />
-        </div>
+    return certificates.filter((certificate) => {
+      const title = certificate.title?.toLowerCase() || "";
+      const issuer = certificate.issuer?.toLowerCase() || "";
+      const credentialId = certificate.credentialId?.toLowerCase() || "";
 
-        <h3 className="font-semibold">No certificates yet</h3>
-
-        <p className="mt-1 max-w-md text-sm text-muted-foreground">
-          Add your certifications, credentials, and professional achievements.
-        </p>
-      </div>
-    );
-  }
+      return (
+        title.includes(normalizedQuery) ||
+        issuer.includes(normalizedQuery) ||
+        credentialId.includes(normalizedQuery)
+      );
+    });
+  }, [certificates, searchQuery]);
 
   return (
-    <div className="space-y-5">
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    <div className="space-y-6">
+      {/* Search */}
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
 
-        <input
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
+        <Input
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
           placeholder="Search certificates..."
-          className="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+          aria-label="Search certificates"
+          className="pl-9"
         />
       </div>
 
-      {filteredCertificates.length === 0 ? (
-        <div className="rounded-xl border border-dashed px-6 py-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            No certificates match your search.
-          </p>
+      {/* No Certificates */}
+      {certificates.length === 0 ? (
+        <div className="flex min-h-56 items-center justify-center rounded-xl border bg-card p-6 text-center">
+          <div>
+            <p className="font-medium">No certificates yet</p>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Add your first certificate to display it here.
+            </p>
+          </div>
+        </div>
+      ) : filteredCertificates.length === 0 ? (
+        /* No Search Results */
+        <div className="flex min-h-56 items-center justify-center rounded-xl border bg-card p-6 text-center">
+          <div>
+            <p className="font-medium">No certificates found</p>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Try a different title, issuer, or credential ID.
+            </p>
+          </div>
         </div>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        /* Certificate Grid */
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {filteredCertificates.map((certificate) => (
             <CertificateCard
               key={certificate._id}

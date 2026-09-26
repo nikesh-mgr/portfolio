@@ -1,7 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import {
-  AlertCircle,
   CheckCircle2,
   Download,
   FileText,
@@ -9,55 +8,80 @@ import {
   RefreshCw,
   Trash2,
   Upload,
-  X,
+  AlertCircle,
 } from "lucide-react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
 import { toast } from "sonner";
 
-import { deleteResume, getResume, uploadResume } from "@/api/resumeApi";
+import { Document, Page, pdfjs } from "react-pdf";
 
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  deleteResume,
+  getResume,
+  updateResume,
+  uploadResume,
+} from "@/api/resumeApi";
+
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
+const formatFileSize = (bytes) => {
+  if (!bytes) {
+    return "Unknown size";
+  }
+
+  const units = ["Bytes", "KB", "MB", "GB"];
+  const index = Math.floor(Math.log(bytes) / Math.log(1024));
+
+  return `${(bytes / Math.pow(1024, index)).toFixed(
+    index === 0 ? 0 : 2,
+  )} ${units[index]}`;
+};
+
+const getErrorMessage = (error, fallback) => {
+  return error?.response?.data?.message || error?.message || fallback;
+};
+
 const Resume = () => {
   const queryClient = useQueryClient();
-
   const fileInputRef = useRef(null);
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [title, setTitle] = useState("Resume");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [numPages, setNumPages] = useState(null);
+
+  // ---------------------------------------------------------------------------
+  // Fetch resume
+  // ---------------------------------------------------------------------------
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["resume"],
     queryFn: getResume,
   });
 
-  const resume = data?.resume || null;
+  const resume = data?.resume ?? null;
+  const resumeUrl = resume?.file?.url ?? null;
 
-  const selectedFileSize = useMemo(() => {
-    if (!selectedFile) {
-      return null;
-    }
-
-    return `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`;
-  }, [selectedFile]);
+  // ---------------------------------------------------------------------------
+  // Upload
+  // ---------------------------------------------------------------------------
 
   const uploadMutation = useMutation({
     mutationFn: uploadResume,
 
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
         queryKey: ["resume"],
       });
 
@@ -68,38 +92,73 @@ const Resume = () => {
         fileInputRef.current.value = "";
       }
 
-      toast.success(response?.message || "Resume uploaded successfully");
+      toast.success("Resume uploaded successfully");
     },
 
     onError: (mutationError) => {
-      toast.error(
-        mutationError?.response?.data?.message || "Failed to upload resume",
-      );
+      toast.error(getErrorMessage(mutationError, "Failed to upload resume"));
     },
   });
+
+  // ---------------------------------------------------------------------------
+  // Update
+  // ---------------------------------------------------------------------------
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, resumeData }) => updateResume(id, resumeData),
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["resume"],
+      });
+
+      toast.success("Resume status updated");
+    },
+
+    onError: (mutationError) => {
+      toast.error(getErrorMessage(mutationError, "Failed to update resume"));
+    },
+  });
+
+  // ---------------------------------------------------------------------------
+  // Delete
+  // ---------------------------------------------------------------------------
 
   const deleteMutation = useMutation({
     mutationFn: deleteResume,
 
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
         queryKey: ["resume"],
       });
 
-      toast.success(response?.message || "Resume deleted successfully");
+      setSelectedFile(null);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      toast.success("Resume deleted successfully");
     },
 
     onError: (mutationError) => {
-      toast.error(
-        mutationError?.response?.data?.message || "Failed to delete resume",
-      );
+      toast.error(getErrorMessage(mutationError, "Failed to delete resume"));
+    },
+
+    onSettled: () => {
+      setIsDeleting(false);
     },
   });
+
+  // ---------------------------------------------------------------------------
+  // File selection
+  // ---------------------------------------------------------------------------
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
 
     if (!file) {
+      setSelectedFile(null);
       return;
     }
 
@@ -107,14 +166,16 @@ const Resume = () => {
       toast.error("Only PDF files are allowed");
 
       event.target.value = "";
+      setSelectedFile(null);
 
       return;
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      toast.error("Resume must be 5 MB or smaller");
+      toast.error("Resume must be smaller than 5 MB");
 
       event.target.value = "";
+      setSelectedFile(null);
 
       return;
     }
@@ -122,388 +183,478 @@ const Resume = () => {
     setSelectedFile(file);
   };
 
-  const handleSelectFile = () => {
-    fileInputRef.current?.click();
-  };
+  // ---------------------------------------------------------------------------
+  // Upload
+  // ---------------------------------------------------------------------------
 
-  const handleRemoveSelectedFile = () => {
-    setSelectedFile(null);
+  const handleUpload = (event) => {
+    event.preventDefault();
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const handleUpload = () => {
     if (!selectedFile) {
       toast.error("Please select a PDF resume");
-
-      return;
-    }
-
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
-      toast.error("Resume title is required");
-
-      return;
-    }
-
-    if (trimmedTitle.length > 100) {
-      toast.error("Resume title cannot exceed 100 characters");
-
       return;
     }
 
     uploadMutation.mutate({
       file: selectedFile,
-      title: trimmedTitle,
+      title: title.trim() || "Resume",
     });
   };
 
+  // ---------------------------------------------------------------------------
+  // Delete
+  // ---------------------------------------------------------------------------
+
   const handleDelete = () => {
-    if (!resume) {
+    if (!resume?._id) {
       return;
     }
 
     const confirmed = window.confirm(
-      "Are you sure you want to delete the current resume? This action cannot be undone.",
+      "Are you sure you want to delete this resume?",
     );
 
     if (!confirmed) {
       return;
     }
 
-    deleteMutation.mutate(resume._id || resume.id);
+    setIsDeleting(true);
+    deleteMutation.mutate(resume._id);
   };
 
-  const handleViewResume = () => {
-    if (!resume?.file?.url) {
+  // ---------------------------------------------------------------------------
+  // Activate / deactivate
+  // ---------------------------------------------------------------------------
+
+  const handleToggleActive = () => {
+    if (!resume?._id) {
       return;
     }
 
-    window.open(resume.file.url, "_blank", "noopener,noreferrer");
+    updateMutation.mutate({
+      id: resume._id,
+      resumeData: {
+        isActive: !resume.isActive,
+      },
+    });
   };
 
-  const handleDownloadResume = () => {
-    if (!resume?.file?.url) {
+  // ---------------------------------------------------------------------------
+  // Download
+  // ---------------------------------------------------------------------------
+
+  const handleDownload = async () => {
+    if (!resumeUrl) {
+      toast.error("Resume PDF is not available");
       return;
     }
 
-    window.open(resume.file.url, "_blank", "noopener,noreferrer");
+    try {
+      const response = await fetch(resumeUrl);
+
+      if (!response.ok) {
+        throw new Error("Failed to download resume");
+      }
+
+      const blob = await response.blob();
+
+      const pdfBlob = new Blob([blob], {
+        type: "application/pdf",
+      });
+
+      const downloadUrl = window.URL.createObjectURL(pdfBlob);
+
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = "resume.pdf";
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error("Resume download failed:", error);
+      toast.error("Failed to download resume");
+    }
   };
 
-  const handleRefresh = () => {
-    refetch();
+  // ---------------------------------------------------------------------------
+  // PDF loaded
+  // ---------------------------------------------------------------------------
+
+  const handleDocumentLoadSuccess = ({ numPages: totalPages }) => {
+    setNumPages(totalPages);
   };
+
+  // ---------------------------------------------------------------------------
+  // Loading
+  // ---------------------------------------------------------------------------
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <AdminPageHeader
+          title="Resume"
+          description="Manage the resume displayed on your portfolio."
+        />
+
+        <div className="flex min-h-[300px] items-center justify-center rounded-xl border bg-card">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading resume...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Error
+  // ---------------------------------------------------------------------------
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <AdminPageHeader
+          title="Resume"
+          description="Manage the resume displayed on your portfolio."
+        />
+
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+
+            <div className="flex-1">
+              <h2 className="font-semibold">Failed to load resume</h2>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                {getErrorMessage(
+                  error,
+                  "Something went wrong while loading the resume.",
+                )}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+                />
+                Try again
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Resume"
-        description="Manage the resume displayed and downloaded from your portfolio."
+        description="Upload and manage the resume displayed on your portfolio."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        {/* Current Resume */}
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
+      {/* Upload */}
+
+      <section className="rounded-xl border bg-card p-5 shadow-sm sm:p-6">
+        <div className="mb-5">
+          <h2 className="text-lg font-semibold">Upload Resume</h2>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            Upload a PDF file up to 5 MB.
+          </p>
+        </div>
+
+        <form onSubmit={handleUpload} className="space-y-5">
+          {/* Title */}
+
+          <div className="space-y-2">
+            <label htmlFor="resume-title" className="text-sm font-medium">
+              Resume title
+            </label>
+
+            <input
+              id="resume-title"
+              type="text"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={100}
+              placeholder="Resume"
+              disabled={uploadMutation.isPending}
+              className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none transition placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
+
+          {/* File */}
+
+          <div className="space-y-2">
+            <label htmlFor="resume-file" className="text-sm font-medium">
+              Resume PDF
+            </label>
+
+            <input
+              ref={fileInputRef}
+              id="resume-file"
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={handleFileChange}
+              disabled={uploadMutation.isPending}
+              className="block w-full cursor-pointer rounded-lg border bg-background text-sm file:mr-4 file:border-0 file:bg-muted file:px-4 file:py-2.5 file:text-sm file:font-medium hover:file:bg-muted/80 disabled:cursor-not-allowed"
+            />
+
+            <p className="text-xs text-muted-foreground">
+              PDF only · Maximum 5 MB
+            </p>
+          </div>
+
+          {/* Selected file */}
+
+          {selectedFile && (
+            <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background">
                 <FileText className="h-5 w-5" />
-                Current Resume
-              </CardTitle>
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {selectedFile.name}
+                </p>
+
+                <p className="text-xs text-muted-foreground">
+                  {formatFileSize(selectedFile.size)}
+                </p>
+              </div>
+
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+            </div>
+          )}
+
+          {/* Upload button */}
+
+          <button
+            type="submit"
+            disabled={!selectedFile || uploadMutation.isPending}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {uploadMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4" />
+                Upload Resume
+              </>
+            )}
+          </button>
+        </form>
+      </section>
+
+      {/* Current resume */}
+
+      <section className="rounded-xl border bg-card shadow-sm">
+        <div className="border-b p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Current Resume</h2>
 
               <p className="mt-1 text-sm text-muted-foreground">
-                Your currently active resume.
+                Your currently uploaded resume.
               </p>
             </div>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleRefresh}
-              disabled={isFetching}
-              aria-label="Refresh resume"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
-              />
-            </Button>
-          </CardHeader>
-
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-4">
-                <Skeleton className="h-[420px] w-full rounded-lg" />
-
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-48" />
-                  <Skeleton className="h-4 w-72" />
-                </div>
-              </div>
-            ) : isError ? (
-              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-lg border border-destructive/30 bg-destructive/[0.03] px-6 text-center">
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-                  <AlertCircle className="h-6 w-6 text-destructive" />
-                </div>
-
-                <h3 className="font-semibold">Failed to load resume</h3>
-
-                <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                  {error?.response?.data?.message ||
-                    error?.message ||
-                    "Something went wrong while loading the resume."}
-                </p>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleRefresh}
-                  className="mt-4 gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Try again
-                </Button>
-              </div>
-            ) : !resume ? (
-              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-lg border border-dashed px-6 text-center">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-                  <FileText className="h-6 w-6 text-muted-foreground" />
-                </div>
-
-                <h3 className="font-semibold">No resume uploaded</h3>
-
-                <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                  Upload your latest resume to make it available on your
-                  portfolio.
-                </p>
-
-                <Button
-                  type="button"
-                  onClick={handleSelectFile}
-                  className="mt-5 gap-2"
-                >
-                  <Upload className="h-4 w-4" />
-                  Choose PDF
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-5">
-                {/* PDF Preview */}
-                <div className="overflow-hidden rounded-lg border bg-muted/20">
-                  <iframe
-                    src={resume.file?.url}
-                    title={resume.title || "Resume preview"}
-                    className="h-[520px] w-full"
-                  />
-                </div>
-
-                {/* Resume Information */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate font-semibold">
-                        {resume.title || "Resume"}
-                      </h3>
-
-                      {resume.isActive && (
-                        <Badge variant="default" className="gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Active
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                      {resume.file?.size && (
-                        <p>
-                          Size: {(resume.file.size / (1024 * 1024)).toFixed(2)}{" "}
-                          MB
-                        </p>
-                      )}
-
-                      <p>
-                        Format: {(resume.file?.format || "pdf").toUpperCase()}
-                      </p>
-
-                      {resume.createdAt && (
-                        <p>
-                          Uploaded:{" "}
-                          {new Intl.DateTimeFormat("en-US", {
-                            dateStyle: "medium",
-                          }).format(new Date(resume.createdAt))}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleViewResume}
-                      className="gap-2"
-                    >
-                      <FileText className="h-4 w-4" />
-                      View
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleDownloadResume}
-                      className="gap-2"
-                    >
-                      <Download className="h-4 w-4" />
-                      Open PDF
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={handleDelete}
-                      disabled={deleteMutation.isPending}
-                      className="gap-2"
-                    >
-                      {deleteMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Upload / Replace */}
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              {resume ? "Replace Resume" : "Upload Resume"}
-            </CardTitle>
-
-            <p className="text-sm text-muted-foreground">
-              Upload a PDF file up to 5 MB.
-            </p>
-          </CardHeader>
-
-          <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="resumeTitle">Resume title</Label>
-
-              <Input
-                id="resumeTitle"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="Resume"
-                maxLength={100}
-                disabled={uploadMutation.isPending}
-              />
-
-              <p className="text-xs text-muted-foreground">
-                Maximum 100 characters.
-              </p>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-3">
-              <Label>Select PDF</Label>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-
-              {!selectedFile ? (
-                <button
-                  type="button"
-                  onClick={handleSelectFile}
-                  disabled={uploadMutation.isPending}
-                  className="flex min-h-[190px] w-full flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-6 text-center transition-colors hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-50"
-                >
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-sm">
-                    <Upload className="h-5 w-5 text-muted-foreground" />
-                  </div>
-
-                  <span className="text-sm font-medium">
-                    Click to choose your resume
-                  </span>
-
-                  <span className="mt-1 text-xs text-muted-foreground">
-                    PDF only • Maximum 5 MB
-                  </span>
-                </button>
-              ) : (
-                <div className="rounded-lg border bg-muted/20 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background">
-                      <FileText className="h-5 w-5" />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {selectedFile.name}
-                      </p>
-
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        PDF • {selectedFileSize}
-                      </p>
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleRemoveSelectedFile}
-                      disabled={uploadMutation.isPending}
-                      aria-label="Remove selected file"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <Button
-              type="button"
-              onClick={handleUpload}
-              disabled={!selectedFile || uploadMutation.isPending}
-              className="w-full gap-2"
-            >
-              {uploadMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  {resume ? "Replace Resume" : "Upload Resume"}
-                </>
-              )}
-            </Button>
 
             {resume && (
-              <p className="text-center text-xs leading-5 text-muted-foreground">
-                Uploading a new resume automatically makes the new file active
-                and deactivates the previous resume.
-              </p>
+              <div
+                className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
+                  resume.isActive
+                    ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    resume.isActive ? "bg-green-500" : "bg-muted-foreground"
+                  }`}
+                />
+
+                {resume.isActive ? "Active" : "Inactive"}
+              </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
+
+        {!resume ? (
+          <div className="flex min-h-[260px] flex-col items-center justify-center p-6 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <FileText className="h-7 w-7 text-muted-foreground" />
+            </div>
+
+            <h3 className="mt-4 font-semibold">No resume uploaded</h3>
+
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">
+              Upload a PDF resume above.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6 p-5 sm:p-6">
+            {/* Information */}
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border p-4">
+                <p className="text-xs text-muted-foreground">Title</p>
+
+                <p className="mt-1 truncate text-sm font-medium">
+                  {resume.title || "Resume"}
+                </p>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <p className="text-xs text-muted-foreground">Format</p>
+
+                <p className="mt-1 text-sm font-medium uppercase">
+                  {resume.file?.format || "PDF"}
+                </p>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <p className="text-xs text-muted-foreground">Size</p>
+
+                <p className="mt-1 text-sm font-medium">
+                  {formatFileSize(resume.file?.size)}
+                </p>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <p className="text-xs text-muted-foreground">Status</p>
+
+                <p className="mt-1 text-sm font-medium">
+                  {resume.isActive ? "Active" : "Inactive"}
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {/* ONLY download action */}
+
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={!resumeUrl}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                Download Resume
+              </button>
+
+              {/* Activate / deactivate */}
+
+              <button
+                type="button"
+                onClick={handleToggleActive}
+                disabled={updateMutation.isPending}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {updateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+
+                {resume.isActive ? "Deactivate" : "Activate"}
+              </button>
+
+              {/* Delete */}
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting || deleteMutation.isPending}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2.5 text-sm font-medium text-destructive transition hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isDeleting || deleteMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                Delete
+              </button>
+            </div>
+
+            {/* PDF Preview */}
+
+            <div className="overflow-hidden rounded-xl border bg-muted/20">
+              <div className="flex items-center justify-between border-b bg-background px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+
+                  <span className="text-sm font-medium">Resume Preview</span>
+                </div>
+
+                {numPages && (
+                  <span className="text-xs text-muted-foreground">
+                    {numPages} {numPages === 1 ? "page" : "pages"}
+                  </span>
+                )}
+              </div>
+
+              <div className="max-h-[800px] overflow-auto bg-muted/30 p-4">
+                <div className="mx-auto flex w-fit flex-col items-center gap-4">
+                  <Document
+                    file={resumeUrl}
+                    onLoadSuccess={handleDocumentLoadSuccess}
+                    loading={
+                      <div className="flex h-[300px] w-[min(700px,90vw)] items-center justify-center">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Loading PDF...
+                        </div>
+                      </div>
+                    }
+                    error={
+                      <div className="flex min-h-[300px] w-[min(700px,90vw)] items-center justify-center">
+                        <div className="text-center">
+                          <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
+
+                          <p className="mt-3 text-sm font-medium">
+                            Failed to load PDF preview
+                          </p>
+
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Use the Download Resume button to access the PDF.
+                          </p>
+                        </div>
+                      </div>
+                    }
+                  >
+                    {Array.from(new Array(numPages || 1), (_, index) => (
+                      <Page
+                        key={`page_${index + 1}`}
+                        pageNumber={index + 1}
+                        renderTextLayer
+                        renderAnnotationLayer
+                        className="mb-4 shadow-md"
+                      />
+                    ))}
+                  </Document>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 };

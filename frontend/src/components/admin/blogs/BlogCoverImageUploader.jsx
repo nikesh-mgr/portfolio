@@ -1,12 +1,27 @@
 import { ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
-
 import { useEffect, useRef, useState } from "react";
-
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
+/*
+|--------------------------------------------------------------------------
+| File Upload Configuration
+|--------------------------------------------------------------------------
+|
+| Keep these restrictions aligned with the backend uploadMiddleware.
+|--------------------------------------------------------------------------
+*/
+
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+/*
+|--------------------------------------------------------------------------
+| Component
+|--------------------------------------------------------------------------
+*/
 
 const BlogCoverImageUploader = ({
   value = null,
@@ -16,45 +31,38 @@ const BlogCoverImageUploader = ({
   const inputRef = useRef(null);
 
   const [preview, setPreview] = useState(null);
-
   const [isPreparing, setIsPreparing] = useState(false);
 
   /*
   |--------------------------------------------------------------------------
-  | Set existing image
+  | Set Existing Image
+  |--------------------------------------------------------------------------
+  |
+  | The component can receive:
+  |
+  | 1. Backend image object:
+  |    { url, publicId }
+  |
+  | 2. Plain URL
+  |
+  | 3. Newly selected image state:
+  |    { file, preview, existingUrl, remove }
   |--------------------------------------------------------------------------
   */
 
   useEffect(() => {
     let imageUrl = null;
 
-    /*
-     * Existing backend image:
-     *
-     * {
-     *   url: "...",
-     *   publicId: "..."
-     * }
-     */
-
-    if (value && typeof value === "object" && value.url) {
-      imageUrl = value.url;
+    if (value && typeof value === "object") {
+      if (value.preview) {
+        imageUrl = value.preview;
+      } else if (value.url) {
+        imageUrl = value.url;
+      }
     }
-
-    /*
-     * Existing plain URL.
-     */
 
     if (typeof value === "string" && value) {
       imageUrl = value;
-    }
-
-    /*
-     * New image preview.
-     */
-
-    if (value && typeof value === "object" && value.preview) {
-      imageUrl = value.preview;
     }
 
     setPreview(imageUrl);
@@ -62,11 +70,29 @@ const BlogCoverImageUploader = ({
 
   /*
   |--------------------------------------------------------------------------
-  | Select image
+  | Cleanup Blob URL
+  |--------------------------------------------------------------------------
+  |
+  | Object URLs created with URL.createObjectURL() must be revoked
+  | when they are no longer needed to prevent browser memory leaks.
   |--------------------------------------------------------------------------
   */
 
-  const handleFileChange = async (event) => {
+  useEffect(() => {
+    return () => {
+      if (preview?.startsWith("blob:")) {
+        URL.revokeObjectURL(preview);
+      }
+    };
+  }, [preview]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Select Image
+  |--------------------------------------------------------------------------
+  */
+
+  const handleFileChange = (event) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -74,11 +100,21 @@ const BlogCoverImageUploader = ({
     }
 
     /*
-     * Validate type
-     */
+    |--------------------------------------------------------------------------
+    | Validate MIME type
+    |--------------------------------------------------------------------------
+    |
+    | Do not use file.type.startsWith("image/").
+    |
+    | The backend accepts only:
+    | - image/jpeg
+    | - image/png
+    | - image/webp
+    |--------------------------------------------------------------------------
+    */
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select a valid image.");
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      toast.error("Only JPG, PNG, and WEBP images are allowed.");
 
       if (inputRef.current) {
         inputRef.current.value = "";
@@ -88,8 +124,10 @@ const BlogCoverImageUploader = ({
     }
 
     /*
-     * Validate size
-     */
+    |--------------------------------------------------------------------------
+    | Validate File Size
+    |--------------------------------------------------------------------------
+    */
 
     if (file.size > MAX_FILE_SIZE) {
       toast.error("Image size must not exceed 5 MB.");
@@ -103,54 +141,64 @@ const BlogCoverImageUploader = ({
 
     setIsPreparing(true);
 
-    try {
-      /*
-       * Revoke previous blob URL.
-       */
+    /*
+    |--------------------------------------------------------------------------
+    | Revoke Previous Blob Preview
+    |--------------------------------------------------------------------------
+    */
 
-      if (preview?.startsWith("blob:")) {
-        URL.revokeObjectURL(preview);
-      }
+    if (preview?.startsWith("blob:")) {
+      URL.revokeObjectURL(preview);
+    }
 
-      /*
-       * Create temporary preview.
-       */
+    /*
+    |--------------------------------------------------------------------------
+    | Create Temporary Preview
+    |--------------------------------------------------------------------------
+    */
 
-      const objectUrl = URL.createObjectURL(file);
+    const objectUrl = URL.createObjectURL(file);
 
-      setPreview(objectUrl);
+    setPreview(objectUrl);
 
-      /*
-       * IMPORTANT:
-       *
-       * existingUrl is intentionally
-       * null because this is a new image.
-       */
+    /*
+    |--------------------------------------------------------------------------
+    | Notify Parent
+    |--------------------------------------------------------------------------
+    |
+    | existingUrl is null because the selected file is a new image.
+    |
+    | remove must also be false because selecting a new image replaces
+    | the previous image.
+    |--------------------------------------------------------------------------
+    */
 
-      const imageData = {
-        file,
-        preview: objectUrl,
+    onChange?.({
+      file,
+      preview: objectUrl,
+      existingUrl: null,
+      remove: false,
+    });
 
-        existingUrl: null,
+    setIsPreparing(false);
 
-        remove: false,
-      };
+    /*
+    |--------------------------------------------------------------------------
+    | Reset Input
+    |--------------------------------------------------------------------------
+    |
+    | This allows the user to select the same file again later.
+    |--------------------------------------------------------------------------
+    */
 
-      onChange?.(imageData);
-    } catch (error) {
-      toast.error("Failed to prepare the image.");
-    } finally {
-      setIsPreparing(false);
-
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
+    if (inputRef.current) {
+      inputRef.current.value = "";
     }
   };
 
   /*
   |--------------------------------------------------------------------------
-  | Remove image
+  | Remove Image
   |--------------------------------------------------------------------------
   */
 
@@ -161,20 +209,34 @@ const BlogCoverImageUploader = ({
 
     setPreview(null);
 
+    /*
+    |--------------------------------------------------------------------------
+    | Tell the parent that the current image should be removed.
+    |--------------------------------------------------------------------------
+    |
+    | BlogEdit uses:
+    |
+    | remove === true && !file
+    |
+    | to call the backend delete-cover-image endpoint.
+    |--------------------------------------------------------------------------
+    */
+
     onChange?.({
       file: null,
-
       preview: null,
-
       existingUrl: null,
-
       remove: true,
     });
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
   };
 
   /*
   |--------------------------------------------------------------------------
-  | Choose image
+  | Choose Image
   |--------------------------------------------------------------------------
   */
 
@@ -188,7 +250,7 @@ const BlogCoverImageUploader = ({
 
   /*
   |--------------------------------------------------------------------------
-  | UI
+  | Render
   |--------------------------------------------------------------------------
   */
 

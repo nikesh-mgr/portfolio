@@ -8,7 +8,7 @@ import {
   deleteContact,
   updateContactReadStatus,
 } from "../controllers/contactController.js";
-
+import { contactRateLimiter } from "../middleware/rateLimiter.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import validateMiddleware from "../middleware/validateMiddleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
@@ -24,10 +24,10 @@ const router = express.Router();
  */
 router.post(
   "/",
+  contactRateLimiter,
   validateMiddleware(createContactSchema),
   asyncHandler(createContact)
 );
-
 /*
  * Admin
  */

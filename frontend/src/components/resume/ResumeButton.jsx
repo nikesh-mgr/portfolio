@@ -11,8 +11,9 @@ const ResumeButton = ({ variant = "primary", showLabel = true }) => {
   });
 
   const resume = data?.resume || null;
-  const resumeUrl = resume?.file?.url || null;
+  const resumeUrl = resume?.file?.url || getResumeUrl();
 
+  const hasResume = Boolean(resume?.file?.url);
   if (isLoading) {
     return (
       <span

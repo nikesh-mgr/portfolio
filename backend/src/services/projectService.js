@@ -1,39 +1,87 @@
 import mongoose from "mongoose";
+
 import Project from "../models/Project.js";
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/ApiError.js";
 
-/**
- * Create a new project.
- */
-export const createProject = async (projectData) => {
-  const { title, slug } = projectData;
+/*
+|--------------------------------------------------------------------------
+| Validate Project ID
+|--------------------------------------------------------------------------
+*/
 
-  const existingProject = await Project.findOne({
-    $or: [{ title }, { slug }],
-  });
-
-  if (existingProject) {
-    if (existingProject.title === title) {
-      throw new ApiError(409, "A project with this title already exists");
-    }
-
-    if (existingProject.slug === slug) {
-      throw new ApiError(409, "A project with this slug already exists");
-    }
+const validateProjectId = (projectId) => {
+  if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    throw new ApiError(400, "Invalid project ID");
   }
-
-  const project = await Project.create(projectData);
-
-  return project;
 };
 
-/**
- * Get all projects.
- */
-export const getAllProjects = async ({ publishedOnly = false } = {}) => {
-  const filter = publishedOnly ? { published: true } : {};
+/*
+|--------------------------------------------------------------------------
+| Handle Duplicate Key Error
+|--------------------------------------------------------------------------
+*/
 
-  const projects = await Project.find(filter).sort({
+const handleDuplicateKeyError = (error) => {
+  if (error?.code !== 11000) {
+    throw error;
+  }
+
+  const duplicateField = Object.keys(error.keyPattern || {})[0];
+
+  if (duplicateField === "slug") {
+    throw new ApiError(409, "A project with this slug already exists");
+  }
+
+  throw new ApiError(409, "A project with this value already exists");
+};
+
+/*
+|--------------------------------------------------------------------------
+| Create Project
+|--------------------------------------------------------------------------
+*/
+
+export const createProject = async (projectData) => {
+  const { title } = projectData;
+
+  /*
+   * Prevent duplicate project titles.
+   */
+  const existingProject = await Project.findOne({ title });
+
+  if (existingProject) {
+    throw new ApiError(409, "A project with this title already exists");
+  }
+
+  try {
+    /*
+     * Project model generates the slug.
+     */
+    const project = await Project.create(projectData);
+
+    return project;
+  } catch (error) {
+    handleDuplicateKeyError(error);
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| Get All Projects
+|--------------------------------------------------------------------------
+|
+| Returns every project.
+|
+| Public:
+| GET /api/projects
+|
+| Admin:
+| GET /api/projects/admin/all
+|
+*/
+
+export const getAllProjects = async () => {
+  const projects = await Project.find({}).sort({
     featured: -1,
     order: 1,
     createdAt: -1,
@@ -42,11 +90,38 @@ export const getAllProjects = async ({ publishedOnly = false } = {}) => {
   return projects;
 };
 
-/**
- * Get a project by slug.
- */
+/*
+|--------------------------------------------------------------------------
+| Get Featured Projects
+|--------------------------------------------------------------------------
+|
+| Returns only:
+|
+| featured === true
+|
+*/
+
+export const getFeaturedProjects = async () => {
+  const projects = await Project.find({
+    featured: true,
+  }).sort({
+    order: 1,
+    createdAt: -1,
+  });
+
+  return projects;
+};
+
+/*
+|--------------------------------------------------------------------------
+| Get Project By Slug
+|--------------------------------------------------------------------------
+*/
+
 export const getProjectBySlug = async (slug) => {
-  const project = await Project.findOne({ slug });
+  const project = await Project.findOne({
+    slug,
+  });
 
   if (!project) {
     throw new ApiError(404, "Project not found");
@@ -55,13 +130,14 @@ export const getProjectBySlug = async (slug) => {
   return project;
 };
 
-/**
- * Get a project by ID.
- */
+/*
+|--------------------------------------------------------------------------
+| Get Project By ID
+|--------------------------------------------------------------------------
+*/
+
 export const getProjectById = async (projectId) => {
-  if (!mongoose.Types.ObjectId.isValid(projectId)) {
-    throw new ApiError(400, "Invalid project ID");
-  }
+  validateProjectId(projectId);
 
   const project = await Project.findById(projectId);
 
@@ -72,13 +148,14 @@ export const getProjectById = async (projectId) => {
   return project;
 };
 
-/**
- * Update a project.
- */
+/*
+|--------------------------------------------------------------------------
+| Update Project
+|--------------------------------------------------------------------------
+*/
+
 export const updateProject = async (projectId, projectData) => {
-  if (!mongoose.Types.ObjectId.isValid(projectId)) {
-    throw new ApiError(400, "Invalid project ID");
-  }
+  validateProjectId(projectId);
 
   const project = await Project.findById(projectId);
 
@@ -86,13 +163,15 @@ export const updateProject = async (projectId, projectData) => {
     throw new ApiError(404, "Project not found");
   }
 
-  /**
+  /*
    * Check duplicate title.
    */
   if (projectData.title && projectData.title !== project.title) {
     const existingProject = await Project.findOne({
       title: projectData.title,
-      _id: { $ne: projectId },
+      _id: {
+        $ne: projectId,
+      },
     });
 
     if (existingProject) {
@@ -100,16 +179,17 @@ export const updateProject = async (projectId, projectData) => {
     }
   }
 
-  /**
-   * Check duplicate slug.
+  /*
+   * Check duplicate slug if supplied.
    *
-   * Normally the Project model generates the slug
-   * automatically from the title.
+   * Normally the model generates the slug automatically.
    */
   if (projectData.slug && projectData.slug !== project.slug) {
     const existingProject = await Project.findOne({
       slug: projectData.slug,
-      _id: { $ne: projectId },
+      _id: {
+        $ne: projectId,
+      },
     });
 
     if (existingProject) {
@@ -117,9 +197,8 @@ export const updateProject = async (projectId, projectData) => {
     }
   }
 
-  /**
-   * Keep the old image so the controller can
-   * delete it from Cloudinary after the update.
+  /*
+   * Preserve old primary image.
    */
   const oldImage = project.image
     ? {
@@ -128,12 +207,16 @@ export const updateProject = async (projectId, projectData) => {
       }
     : null;
 
-  /**
-   * Update project fields.
+  /*
+   * Apply project updates.
    */
   Object.assign(project, projectData);
 
-  await project.save();
+  try {
+    await project.save();
+  } catch (error) {
+    handleDuplicateKeyError(error);
+  }
 
   return {
     project,
@@ -141,13 +224,14 @@ export const updateProject = async (projectId, projectData) => {
   };
 };
 
-/**
- * Delete a project.
- */
+/*
+|--------------------------------------------------------------------------
+| Delete Project
+|--------------------------------------------------------------------------
+*/
+
 export const deleteProject = async (projectId) => {
-  if (!mongoose.Types.ObjectId.isValid(projectId)) {
-    throw new ApiError(400, "Invalid project ID");
-  }
+  validateProjectId(projectId);
 
   const project = await Project.findById(projectId);
 
@@ -155,9 +239,8 @@ export const deleteProject = async (projectId) => {
     throw new ApiError(404, "Project not found");
   }
 
-  /**
-   * Keep Cloudinary information before
-   * deleting the MongoDB document.
+  /*
+   * Preserve primary image information.
    */
   const image = project.image
     ? {
@@ -166,11 +249,17 @@ export const deleteProject = async (projectId) => {
       }
     : null;
 
+  /*
+   * Preserve gallery image information.
+   */
   const images = project.images.map((item) => ({
     url: item.url,
     publicId: item.publicId,
   }));
 
+  /*
+   * Delete MongoDB document.
+   */
   await project.deleteOne();
 
   return {
@@ -180,12 +269,17 @@ export const deleteProject = async (projectId) => {
   };
 };
 
-/**
- * Add gallery images to a project.
- */
+/*
+|--------------------------------------------------------------------------
+| Add Project Images
+|--------------------------------------------------------------------------
+*/
+
 export const addProjectImages = async (projectId, images) => {
-  if (!mongoose.Types.ObjectId.isValid(projectId)) {
-    throw new ApiError(400, "Invalid project ID");
+  validateProjectId(projectId);
+
+  if (!Array.isArray(images) || images.length === 0) {
+    throw new ApiError(400, "At least one gallery image is required");
   }
 
   const project = await Project.findById(projectId);
@@ -194,19 +288,38 @@ export const addProjectImages = async (projectId, images) => {
     throw new ApiError(404, "Project not found");
   }
 
+  /*
+   * Maximum 10 gallery images.
+   */
+  if (project.images.length + images.length > 10) {
+    throw new ApiError(
+      400,
+      "A project cannot contain more than 10 additional images"
+    );
+  }
+
   project.images.push(...images);
 
-  await project.save();
+  try {
+    await project.save();
+  } catch (error) {
+    handleDuplicateKeyError(error);
+  }
 
   return project;
 };
 
-/**
- * Remove a gallery image from a project.
- */
+/*
+|--------------------------------------------------------------------------
+| Remove Project Image
+|--------------------------------------------------------------------------
+*/
+
 export const removeProjectImage = async (projectId, publicId) => {
-  if (!mongoose.Types.ObjectId.isValid(projectId)) {
-    throw new ApiError(400, "Invalid project ID");
+  validateProjectId(projectId);
+
+  if (typeof publicId !== "string" || !publicId.trim()) {
+    throw new ApiError(400, "Image public ID is required");
   }
 
   const project = await Project.findById(projectId);
@@ -223,6 +336,9 @@ export const removeProjectImage = async (projectId, publicId) => {
     throw new ApiError(404, "Project gallery image not found");
   }
 
+  /*
+   * Preserve removed image for Cloudinary cleanup.
+   */
   const [removedImage] = project.images.splice(imageIndex, 1);
 
   await project.save();

@@ -21,10 +21,6 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
               Status
             </th>
 
-            <th className="px-5 py-3 font-medium text-muted-foreground">
-              Featured
-            </th>
-
             <th className="px-5 py-3 text-right font-medium text-muted-foreground">
               Actions
             </th>
@@ -33,9 +29,8 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
 
         <tbody className="divide-y">
           {blogs.map((blog) => {
-            const blogId = blog._id || blog.id;
-
-            const blogSlug = blog.slug || blogId;
+            const blogId = blog?._id || blog?.id;
+            const blogSlug = blog?.slug || null;
             const imageUrl = blog?.coverImage?.url || null;
 
             const isDeleting = deletingBlogId === blogId;
@@ -52,7 +47,8 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                       {imageUrl ? (
                         <img
                           src={imageUrl}
-                          alt={blog.title || "Blog"}
+                          alt={blog?.title || "Blog cover"}
+                          loading="lazy"
                           className="size-full object-cover"
                         />
                       ) : (
@@ -64,11 +60,11 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
 
                     <div className="min-w-0">
                       <p className="truncate font-medium">
-                        {blog.title || "Untitled blog"}
+                        {blog?.title || "Untitled blog"}
                       </p>
 
                       <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {blog.excerpt || "No description"}
+                        {blog?.excerpt || "No description"}
                       </p>
                     </div>
                   </div>
@@ -77,13 +73,13 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                 {/* Category */}
                 <td className="px-5 py-4">
                   <span className="text-sm text-muted-foreground">
-                    {blog.category || "Uncategorized"}
+                    {blog?.category || "Uncategorized"}
                   </span>
                 </td>
 
                 {/* Status */}
                 <td className="px-5 py-4">
-                  {blog.published ? (
+                  {blog?.published ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
                       <Eye className="size-3.5" />
                       Published
@@ -96,25 +92,16 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                   )}
                 </td>
 
-                {/* Featured */}
-                <td className="px-5 py-4">
-                  {blog.featured ? (
-                    <span className="text-xs font-medium">Yes</span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">No</span>
-                  )}
-                </td>
-
                 {/* Actions */}
                 <td className="px-5 py-4">
                   <div className="flex justify-end gap-1">
                     {/* View */}
-                    {blog.slug && (
+                    {blogSlug && (
                       <Link
-                        to={`/blog/${blog.slug}`}
+                        to={`/blog/${blogSlug}`}
                         target="_blank"
-                        rel="noreferrer"
-                        aria-label={`View ${blog.title || "blog"}`}
+                        rel="noopener noreferrer"
+                        aria-label={`View ${blog?.title || "blog"}`}
                         className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
                         <ExternalLink className="size-4" />
@@ -125,7 +112,7 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                     {blogId && (
                       <Link
                         to={`/admin/blogs/${blogId}/edit`}
-                        aria-label={`Edit ${blog.title || "blog"}`}
+                        aria-label={`Edit ${blog?.title || "blog"}`}
                         className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
                         <Pencil className="size-4" />
@@ -138,9 +125,9 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={() => onDelete(blog)}
+                        onClick={() => onDelete?.(blog)}
                         disabled={isDeleting}
-                        aria-label={`Delete ${blog.title || "blog"}`}
+                        aria-label={`Delete ${blog?.title || "blog"}`}
                         className="text-muted-foreground hover:bg-muted hover:text-destructive"
                       >
                         {isDeleting ? (

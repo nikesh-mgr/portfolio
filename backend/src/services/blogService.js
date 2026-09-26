@@ -2,17 +2,67 @@ import mongoose from "mongoose";
 
 import Blog from "../models/Blog.js";
 
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/ApiError.js";
+
+/**
+ * Fields allowed to be changed through the normal blog update endpoint.
+ *
+ * coverImage is intentionally excluded because image management has
+ * dedicated Cloudinary endpoints.
+ */
+const allowedUpdateFields = [
+  "title",
+  "excerpt",
+  "content",
+  "tags",
+  "category",
+  "published",
+  "readingTime",
+  "seo",
+  "order",
+];
+
+/**
+ * Validate MongoDB ObjectId values consistently.
+ */
+const validateBlogId = (blogId) => {
+  if (!mongoose.Types.ObjectId.isValid(blogId)) {
+    throw new ApiError(400, "Invalid blog ID");
+  }
+};
+
+/**
+ * Handle MongoDB unique-index conflicts.
+ *
+ * The pre-checks below improve the normal error message, while this
+ * handler protects against race conditions between two requests.
+ */
+const handleDuplicateKeyError = (error) => {
+  if (error?.code !== 11000) {
+    throw error;
+  }
+
+  const duplicateField = Object.keys(error.keyPattern || {})[0];
+
+  if (duplicateField === "slug") {
+    throw new ApiError(409, "A blog with this slug already exists");
+  }
+
+  throw new ApiError(
+    409,
+    "A blog with the provided information already exists"
+  );
+};
 
 /**
  * Create a new blog.
+ *
+ * Cover image is intentionally handled by the dedicated
+ * POST /:id/cover-image endpoint.
  */
 export const createBlog = async (blogData) => {
   const { title, slug } = blogData;
 
-  /*
-   * Check duplicate title or slug.
-   */
   const duplicateConditions = [];
 
   if (title) {
@@ -26,7 +76,7 @@ export const createBlog = async (blogData) => {
   if (duplicateConditions.length > 0) {
     const existingBlog = await Blog.findOne({
       $or: duplicateConditions,
-    });
+    }).select("title slug");
 
     if (existingBlog) {
       if (title && existingBlog.title === title) {
@@ -39,46 +89,49 @@ export const createBlog = async (blogData) => {
     }
   }
 
-  /*
-   * Create blog.
-   *
-   * Cover image is intentionally handled
-   * by the dedicated cover-image endpoint.
-   */
-  const blog = await Blog.create({
-    ...blogData,
+  try {
+    const blog = await Blog.create({
+      ...blogData,
 
-    coverImage: {
-      url: null,
-      publicId: null,
-    },
-  });
+      // Never allow normal blog creation to inject image metadata.
+      coverImage: {
+        url: null,
+        publicId: null,
+      },
+    });
 
-  return blog;
+    return blog;
+  } catch (error) {
+    handleDuplicateKeyError(error);
+  }
 };
 
 /**
  * Get all blogs.
+ *
+ * publishedOnly=true is used for public requests.
  */
 export const getAllBlogs = async ({ publishedOnly = false } = {}) => {
   const filter = publishedOnly ? { published: true } : {};
 
-  const blogs = await Blog.find(filter)
+  return Blog.find(filter)
     .sort({
       publishedAt: -1,
       createdAt: -1,
     })
     .lean();
-
-  return blogs;
 };
 
 /**
- * Get blog by slug.
+ * Get a blog by slug.
  */
 export const getBlogBySlug = async (slug) => {
+  if (!slug || typeof slug !== "string") {
+    throw new ApiError(400, "Blog slug is required");
+  }
+
   const blog = await Blog.findOne({
-    slug,
+    slug: slug.trim().toLowerCase(),
   });
 
   if (!blog) {
@@ -89,12 +142,10 @@ export const getBlogBySlug = async (slug) => {
 };
 
 /**
- * Get blog by ID.
+ * Get a blog by MongoDB ID.
  */
 export const getBlogById = async (blogId) => {
-  if (!mongoose.Types.ObjectId.isValid(blogId)) {
-    throw new ApiError(400, "Invalid blog ID");
-  }
+  validateBlogId(blogId);
 
   const blog = await Blog.findById(blogId);
 
@@ -106,15 +157,12 @@ export const getBlogById = async (blogId) => {
 };
 
 /**
- * Update a blog.
+ * Update normal blog information.
  *
- * Cover image is NOT updated here.
- * Use updateBlogCoverImage() instead.
+ * Cover image is deliberately excluded.
  */
 export const updateBlog = async (blogId, blogData) => {
-  if (!mongoose.Types.ObjectId.isValid(blogId)) {
-    throw new ApiError(400, "Invalid blog ID");
-  }
+  validateBlogId(blogId);
 
   const blog = await Blog.findById(blogId);
 
@@ -122,69 +170,68 @@ export const updateBlog = async (blogId, blogData) => {
     throw new ApiError(404, "Blog not found");
   }
 
-  /*
-   * Prevent coverImage from being
-   * accidentally overwritten through
-   * the normal blog update endpoint.
+  /**
+   * Whitelist fields rather than assigning arbitrary request data
+   * directly to the Mongoose document.
    */
-  const { coverImage, ...safeBlogData } = blogData;
+  const safeBlogData = {};
 
-  /*
-   * Check duplicate title.
+  for (const field of allowedUpdateFields) {
+    if (Object.prototype.hasOwnProperty.call(blogData, field)) {
+      safeBlogData[field] = blogData[field];
+    }
+  }
+
+  /**
+   * Explicitly reject coverImage if it somehow reaches the service.
+   *
+   * This protects the service even when called outside the normal
+   * validated HTTP route.
+   */
+  if (
+    Object.prototype.hasOwnProperty.call(blogData, "coverImage") &&
+    blogData.coverImage !== undefined
+  ) {
+    throw new ApiError(
+      400,
+      "Cover image must be managed through the cover-image endpoint"
+    );
+  }
+
+  /**
+   * Title uniqueness.
+   *
+   * Slug is generated from the title by the model hook.
    */
   if (safeBlogData.title && safeBlogData.title !== blog.title) {
     const existingBlog = await Blog.findOne({
       title: safeBlogData.title,
-      _id: {
-        $ne: blogId,
-      },
-    });
+      _id: { $ne: blogId },
+    }).select("_id");
 
     if (existingBlog) {
       throw new ApiError(409, "A blog with this title already exists");
     }
   }
 
-  /*
-   * Check duplicate slug.
-   */
-  if (safeBlogData.slug && safeBlogData.slug !== blog.slug) {
-    const existingBlog = await Blog.findOne({
-      slug: safeBlogData.slug,
-      _id: {
-        $ne: blogId,
-      },
-    });
-
-    if (existingBlog) {
-      throw new ApiError(409, "A blog with this slug already exists");
-    }
-  }
-
-  /*
-   * Apply normal blog fields.
-   */
   Object.assign(blog, safeBlogData);
 
-  await blog.save();
+  try {
+    await blog.save();
+  } catch (error) {
+    handleDuplicateKeyError(error);
+  }
 
   return blog;
 };
 
 /**
- * Update blog cover image.
+ * Update blog cover image metadata.
  *
- * Expected:
- *
- * {
- *   url: "https://...",
- *   publicId: "portfolio/blogs/..."
- * }
+ * The actual Cloudinary upload is performed by the controller.
  */
 export const updateBlogCoverImage = async (blogId, coverImage) => {
-  if (!mongoose.Types.ObjectId.isValid(blogId)) {
-    throw new ApiError(400, "Invalid blog ID");
-  }
+  validateBlogId(blogId);
 
   const blog = await Blog.findById(blogId);
 
@@ -192,20 +239,35 @@ export const updateBlogCoverImage = async (blogId, coverImage) => {
     throw new ApiError(404, "Blog not found");
   }
 
-  /*
-   * Validate image object.
-   */
   if (!coverImage || typeof coverImage !== "object") {
     throw new ApiError(400, "Invalid cover image data");
   }
 
-  /*
-   * Save Cloudinary information.
-   */
-  blog.coverImage = {
-    url: coverImage.url || null,
+  if (
+    typeof coverImage.url !== "string" ||
+    !coverImage.url.trim() ||
+    typeof coverImage.publicId !== "string" ||
+    !coverImage.publicId.trim()
+  ) {
+    throw new ApiError(400, "Invalid cover image data");
+  }
 
-    publicId: coverImage.publicId || null,
+  /**
+   * Only store valid HTTP/HTTPS Cloudinary URLs.
+   */
+  try {
+    const url = new URL(coverImage.url);
+
+    if (!["http:", "https:"].includes(url.protocol)) {
+      throw new Error();
+    }
+  } catch {
+    throw new ApiError(400, "Invalid cover image URL");
+  }
+
+  blog.coverImage = {
+    url: coverImage.url.trim(),
+    publicId: coverImage.publicId.trim(),
   };
 
   await blog.save();
@@ -214,16 +276,13 @@ export const updateBlogCoverImage = async (blogId, coverImage) => {
 };
 
 /**
- * Remove blog cover image reference
- * from MongoDB.
+ * Remove the cover image reference from MongoDB.
  *
- * Cloudinary deletion is handled
- * separately by the controller.
+ * Cloudinary deletion is intentionally handled separately by
+ * the controller so database and external-file cleanup remain explicit.
  */
 export const removeBlogCoverImage = async (blogId) => {
-  if (!mongoose.Types.ObjectId.isValid(blogId)) {
-    throw new ApiError(400, "Invalid blog ID");
-  }
+  validateBlogId(blogId);
 
   const blog = await Blog.findById(blogId);
 
@@ -242,12 +301,13 @@ export const removeBlogCoverImage = async (blogId) => {
 };
 
 /**
- * Delete blog.
+ * Delete a blog document.
+ *
+ * The controller is responsible for deleting the associated
+ * Cloudinary asset after the database deletion succeeds.
  */
 export const deleteBlog = async (blogId) => {
-  if (!mongoose.Types.ObjectId.isValid(blogId)) {
-    throw new ApiError(400, "Invalid blog ID");
-  }
+  validateBlogId(blogId);
 
   const blog = await Blog.findById(blogId);
 

@@ -6,7 +6,7 @@ import {
   deleteSkill,
 } from "../services/skillService.js";
 
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/ApiError.js";
 
 import {
   createSkillSchema,
