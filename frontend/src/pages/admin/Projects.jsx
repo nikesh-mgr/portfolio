@@ -30,7 +30,7 @@ const Projects = () => {
   // --------------------------------------------------
 
   const projectsQuery = useQuery({
-    queryKey: ["projects"],
+    queryKey: ["projects", "admin"],
     queryFn: getProjects,
   });
 

@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import {
   getAllCertificates,
   getCertificateById,
@@ -24,7 +25,7 @@ import {
  * GET /api/certificates
  */
 export const getCertificatesController = async (req, res) => {
-  const visibleOnly = req.query.visible !== "false";
+  const visibleOnly = !req.admin;
 
   const certificates = await getAllCertificates({
     visibleOnly,
@@ -42,6 +43,8 @@ export const getCertificatesController = async (req, res) => {
  */
 export const getCertificateByIdController = async (req, res) => {
   const certificate = await getCertificateById(req.params.id);
+  if (!req.admin && !certificate.isVisible)
+    throw new ApiError(404, "Certificate not found");
 
   res.status(200).json({
     success: true,
@@ -79,7 +82,7 @@ export const createCertificateController = async (req, res) => {
         throw new ApiError(500, "Certificate image upload failed");
       }
 
-      certificateData.image = {
+      validation.data.image = {
         url: uploadedImage.secure_url,
         publicId: uploadedImage.public_id,
         width: uploadedImage.width || null,
@@ -88,7 +91,7 @@ export const createCertificateController = async (req, res) => {
       };
     }
 
-    const certificate = await createCertificate(certificateData);
+    const certificate = await createCertificate(validation.data);
 
     res.status(201).json({
       success: true,
@@ -100,7 +103,10 @@ export const createCertificateController = async (req, res) => {
       try {
         await deleteFromCloudinary(uploadedImage.public_id);
       } catch (cleanupError) {
-        console.error("FAILED TO CLEANUP CERTIFICATE IMAGE:", cleanupError);
+        logger.error(
+          { err: cleanupError },
+          "FAILED TO CLEANUP CERTIFICATE IMAGE:"
+        );
       }
     }
 
@@ -141,7 +147,10 @@ export const updateCertificateController = async (req, res) => {
     throw new ApiError(400, "Validation failed", errors);
   }
 
-  const updatedCertificate = await updateCertificate(req.params.id, updateData);
+  const updatedCertificate = await updateCertificate(
+    req.params.id,
+    validation.data
+  );
 
   res.status(200).json({
     success: true,
@@ -190,7 +199,7 @@ export const uploadCertificateImageController = async (req, res) => {
       try {
         await deleteFromCloudinary(existingCertificate.image.publicId);
       } catch (error) {
-        console.error("FAILED TO DELETE OLD CERTIFICATE IMAGE:", error);
+        logger.error({ err: error }, "FAILED TO DELETE OLD CERTIFICATE IMAGE:");
       }
     }
 
@@ -208,7 +217,10 @@ export const uploadCertificateImageController = async (req, res) => {
       try {
         await deleteFromCloudinary(uploadedImage.public_id);
       } catch (cleanupError) {
-        console.error("FAILED TO CLEANUP NEW CERTIFICATE IMAGE:", cleanupError);
+        logger.error(
+          { err: cleanupError },
+          "FAILED TO CLEANUP NEW CERTIFICATE IMAGE:"
+        );
       }
     }
 
@@ -221,6 +233,8 @@ export const uploadCertificateImageController = async (req, res) => {
  */
 export const deleteCertificateImageController = async (req, res) => {
   const certificate = await getCertificateById(req.params.id);
+  if (!req.admin && !certificate.isVisible)
+    throw new ApiError(404, "Certificate not found");
 
   if (!certificate.image?.publicId) {
     throw new ApiError(404, "Certificate image not found");
@@ -239,7 +253,7 @@ export const deleteCertificateImageController = async (req, res) => {
   try {
     await deleteFromCloudinary(publicId);
   } catch (error) {
-    console.error("FAILED TO DELETE CERTIFICATE IMAGE:", error);
+    logger.error({ err: error }, "FAILED TO DELETE CERTIFICATE IMAGE:");
   }
 
   res.status(200).json({
@@ -253,6 +267,8 @@ export const deleteCertificateImageController = async (req, res) => {
  */
 export const deleteCertificateController = async (req, res) => {
   const certificate = await getCertificateById(req.params.id);
+  if (!req.admin && !certificate.isVisible)
+    throw new ApiError(404, "Certificate not found");
 
   await deleteCertificate(req.params.id);
 
@@ -260,7 +276,7 @@ export const deleteCertificateController = async (req, res) => {
     try {
       await deleteFromCloudinary(certificate.image.publicId);
     } catch (error) {
-      console.error("FAILED TO DELETE CERTIFICATE IMAGE:", error);
+      logger.error({ err: error }, "FAILED TO DELETE CERTIFICATE IMAGE:");
     }
   }
 

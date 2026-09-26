@@ -5,6 +5,9 @@ import {
   updateAdminProfileImage as updateAdminProfileImageService,
   removeAdminProfileImage as removeAdminProfileImageService,
 } from "../services/authService.js";
+import ApiError from "../utils/apiError.js";
+import logger from "../utils/logger.js";
+import { uploadPdfToCloudinary } from "../utils/cloudinaryUpload.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 import { updateAdminResume as updateAdminResumeService } from "../services/authService.js";
@@ -127,7 +130,9 @@ export const updateAdminProfileImage = async (req, res) => {
  * Admin only.
  */
 export const removeAdminProfileImage = async (req, res) => {
-  const { admin, oldImage } = await removeAdminProfileImageService(req.user.id);
+  const { admin, oldImage } = await removeAdminProfileImageService(
+    req.admin.id
+  );
 
   /**
    * Delete image from Cloudinary after
@@ -159,7 +164,7 @@ export const updateAdminResume = async (req, res) => {
       throw new ApiError(400, "Resume PDF is required");
     }
 
-    uploadedResume = await uploadResumeToCloudinary(
+    uploadedResume = await uploadPdfToCloudinary(
       req.file.buffer,
       "portfolio/admin/resume"
     );
@@ -171,7 +176,7 @@ export const updateAdminResume = async (req, res) => {
     };
 
     const { admin, oldResume } = await updateAdminResumeService(
-      req.user.id,
+      req.admin.id,
       resume
     );
 
@@ -212,7 +217,7 @@ export const updateAdminResume = async (req, res) => {
  * Delete admin resume.
  */
 export const deleteAdminResume = async (req, res) => {
-  const { resume } = await deleteAdminResumeService(req.user.id);
+  const { resume } = await deleteAdminResumeService(req.admin.id);
 
   try {
     await deleteFromCloudinary(resume.publicId, "raw");

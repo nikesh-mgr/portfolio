@@ -14,7 +14,7 @@ const Blogs = () => {
   const [selectedTag, setSelectedTag] = useState("all");
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["blogs"],
+    queryKey: ["blogs", "public"],
     queryFn: getBlogs,
   });
 

@@ -1,3 +1,4 @@
+import { toProjectFormData } from "@/utils/projectForm";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -29,7 +30,7 @@ const ProjectEdit = () => {
        * Refresh the individual project cache.
        */
       await queryClient.invalidateQueries({
-        queryKey: ["project", id],
+        queryKey: ["project"],
       });
 
       /*
@@ -65,82 +66,7 @@ const ProjectEdit = () => {
       return;
     }
 
-    const payload = new FormData();
-
-    /*
-     * Basic information
-     */
-    payload.append("title", values.title.trim());
-
-    payload.append("shortDescription", values.shortDescription.trim());
-
-    payload.append("description", values.description.trim());
-
-    payload.append("category", values.category.trim());
-
-    /*
-     * Technologies
-     *
-     * Backend should receive:
-     *
-     * technologies=React
-     * technologies=Node.js
-     * technologies=MongoDB
-     */
-    values.technologies.forEach((technology) => {
-      const cleanedTechnology = technology.trim();
-
-      if (cleanedTechnology) {
-        payload.append("technologies", cleanedTechnology);
-      }
-    });
-
-    /*
-     * Optional URLs
-     */
-    if (values.githubUrl?.trim()) {
-      payload.append("githubUrl", values.githubUrl.trim());
-    } else {
-      payload.append("githubUrl", "");
-    }
-
-    if (values.liveUrl?.trim()) {
-      payload.append("liveUrl", values.liveUrl.trim());
-    } else {
-      payload.append("liveUrl", "");
-    }
-
-    /*
-     * Boolean
-     */
-    payload.append("featured", String(values.featured));
-
-    /*
-     * Project status
-     */
-    payload.append("status", values.status);
-
-    /*
-     * Display order
-     */
-    payload.append("order", String(values.order));
-
-    /*
-     * Image
-     *
-     * IMPORTANT:
-     *
-     * Existing image = URL string
-     * New image = File
-     *
-     * Only send the File.
-     *
-     * If no new image was selected, backend keeps
-     * the existing image.
-     */
-    if (values.image instanceof File) {
-      payload.append("image", values.image);
-    }
+    const payload = toProjectFormData(values);
 
     updateMutation.mutate({
       id,

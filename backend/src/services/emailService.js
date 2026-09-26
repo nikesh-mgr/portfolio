@@ -1,8 +1,12 @@
+import escapeHtml from "../utils/escapeHtml.js";
 import nodemailer from "nodemailer";
 import env from "../config/env.js";
 
 const transporter = nodemailer.createTransport({
   host: env.EMAIL.HOST,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
   port: env.EMAIL.PORT,
   secure: env.EMAIL.SECURE,
 
@@ -39,15 +43,15 @@ ${message}
       <h2>New Portfolio Contact Message</h2>
 
       <p>
-        <strong>Name:</strong> ${name}
+        <strong>Name:</strong> ${escapeHtml(name)}
       </p>
 
       <p>
-        <strong>Email:</strong> ${email}
+        <strong>Email:</strong> ${escapeHtml(email)}
       </p>
 
       <p>
-        <strong>Subject:</strong> ${subject}
+        <strong>Subject:</strong> ${escapeHtml(subject)}
       </p>
 
       <hr />
@@ -57,7 +61,7 @@ ${message}
       </p>
 
       <p>
-        ${message.replace(/\n/g, "<br />")}
+        ${escapeHtml(message).replace(/\n/g, "<br />")}
       </p>
     `,
   });

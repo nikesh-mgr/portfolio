@@ -8,7 +8,6 @@ import api from "./axios";
 
 export const getBlogs = async () => {
   const response = await api.get("/blogs");
-  console.log("BLOGS RESPONSE:", response.data);
   return response.data;
 };
 
@@ -17,6 +16,11 @@ export const getBlogs = async () => {
 | Get blog by ID
 |--------------------------------------------------------------------------
 */
+
+export const getAdminBlogs = async () => {
+  const response = await api.get("/blogs/admin");
+  return response.data;
+};
 
 export const getBlogById = async (id) => {
   const response = await api.get(`/blogs/admin/${id}`);

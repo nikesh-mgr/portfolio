@@ -43,7 +43,12 @@ export const updateSiteSettings = async (settingsData) => {
     return settings;
   }
 
-  Object.assign(settings, settingsData);
+  for (const [key, value] of Object.entries(settingsData)) {
+    if (["socialLinks", "seo"].includes(key)) {
+      for (const [field, nestedValue] of Object.entries(value))
+        settings.set(`${key}.${field}`, nestedValue);
+    } else settings.set(key, value);
+  }
 
   await settings.save();
 

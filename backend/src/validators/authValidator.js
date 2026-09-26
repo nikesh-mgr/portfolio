@@ -29,5 +29,9 @@ export const createAdminSchema = z.object({
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
-    .max(128, "Password cannot exceed 128 characters"),
+    .max(128, "Password cannot exceed 128 characters")
+    .refine(
+      (value) => Buffer.byteLength(value, "utf8") <= 72,
+      "Password cannot exceed 72 UTF-8 bytes"
+    ),
 });

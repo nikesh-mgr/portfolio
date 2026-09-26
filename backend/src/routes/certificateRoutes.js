@@ -15,6 +15,12 @@ import uploadMiddleware from "../middleware/uploadMiddleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
 
 const router = express.Router();
+router.get(
+  "/admin/:id",
+  authMiddleware,
+  asyncHandler(getCertificateByIdController)
+);
+router.get("/admin", authMiddleware, asyncHandler(getCertificatesController));
 
 /*
  * Public routes

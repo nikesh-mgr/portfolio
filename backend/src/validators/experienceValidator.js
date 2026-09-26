@@ -1,3 +1,4 @@
+import { dateInput } from "./input.js";
 import { z } from "zod";
 
 const urlSchema = z
@@ -13,87 +14,78 @@ const urlSchema = z
 
 const nullableUrlSchema = urlSchema.nullable().optional();
 
-const dateSchema = z.coerce.date({
-  message: "Please provide a valid date",
-});
+const dateSchema = dateInput;
 
-const nullableDateSchema = z.union([z.coerce.date(), z.null()]).optional();
+const nullableDateSchema = dateInput.nullable().optional();
 
 const stringArraySchema = z
   .array(z.string().trim().min(1, "Array items cannot be empty"))
   .optional();
 
-export const createExperienceSchema = z
-  .object({
-    company: z
-      .string()
-      .trim()
-      .min(2, "Company name must be at least 2 characters")
-      .max(150, "Company name cannot exceed 150 characters"),
+const experienceBaseSchema = z.object({
+  company: z
+    .string()
+    .trim()
+    .min(2, "Company name must be at least 2 characters")
+    .max(150, "Company name cannot exceed 150 characters"),
 
-    position: z
-      .string()
-      .trim()
-      .min(2, "Position must be at least 2 characters")
-      .max(150, "Position cannot exceed 150 characters"),
+  position: z
+    .string()
+    .trim()
+    .min(2, "Position must be at least 2 characters")
+    .max(150, "Position cannot exceed 150 characters"),
 
-    location: z
-      .string()
-      .trim()
-      .max(150, "Location cannot exceed 150 characters")
-      .nullable()
-      .optional(),
+  location: z
+    .string()
+    .trim()
+    .max(150, "Location cannot exceed 150 characters")
+    .nullable()
+    .optional(),
 
-    employmentType: z.enum(
-      [
-        "full-time",
-        "part-time",
-        "internship",
-        "freelance",
-        "contract",
-        "self-employed",
-      ],
-      {
-        message: "Invalid employment type",
-      }
-    ),
+  employmentType: z.enum(
+    [
+      "full-time",
+      "part-time",
+      "internship",
+      "freelance",
+      "contract",
+      "self-employed",
+    ],
+    {
+      message: "Invalid employment type",
+    }
+  ),
 
-    startDate: dateSchema,
+  startDate: dateSchema,
 
-    endDate: nullableDateSchema,
+  endDate: nullableDateSchema,
 
-    current: z.boolean().optional().default(false),
+  current: z.boolean().optional(),
 
-    description: z
-      .string()
-      .trim()
-      .max(3000, "Description cannot exceed 3000 characters")
-      .nullable()
-      .optional(),
+  description: z
+    .string()
+    .trim()
+    .max(3000, "Description cannot exceed 3000 characters")
+    .nullable()
+    .optional(),
 
-    responsibilities: stringArraySchema,
+  responsibilities: stringArraySchema,
 
-    technologies: stringArraySchema,
+  technologies: stringArraySchema,
 
-    companyUrl: nullableUrlSchema,
+  companyUrl: nullableUrlSchema,
 
-    featured: z.boolean().optional().default(false),
+  featured: z.boolean().optional(),
 
-    order: z
-      .number()
-      .int("Order must be an integer")
-      .min(0, "Order cannot be negative")
-      .optional()
-      .default(0),
+  order: z
+    .number()
+    .int("Order must be an integer")
+    .min(0, "Order cannot be negative")
+    .optional(),
+});
 
-    companyLogo: z
-      .object({
-        url: z.string().url().nullable().optional(),
-        publicId: z.string().nullable().optional(),
-      })
-      .optional(),
-  })
-  .superRefine((data, ctx) => {
+export const createExperienceSchema = experienceBaseSchema.superRefine(
+  (data, ctx) => {
     if (data.current && data.endDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -114,9 +106,10 @@ export const createExperienceSchema = z
         message: "End date cannot be before start date",
       });
     }
-  });
+  }
+);
 
-export const updateExperienceSchema = createExperienceSchema
+export const updateExperienceSchema = experienceBaseSchema
   .partial()
   .superRefine((data, ctx) => {
     if (data.current === true && data.endDate) {

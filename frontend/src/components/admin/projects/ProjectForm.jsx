@@ -2,7 +2,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { projectSchema } from "@/utils/projectForm";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,63 +20,6 @@ import { Textarea } from "@/components/ui/textarea";
 
 import ProjectImageUpload from "./ProjectImageUpload";
 import TechnologyInput from "./TechnologyInput";
-
-const projectSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(2, "Title must be at least 2 characters")
-    .max(100, "Title must not exceed 100 characters"),
-
-  shortDescription: z
-    .string()
-    .trim()
-    .min(1, "Short description is required")
-    .max(250, "Short description must not exceed 250 characters"),
-
-  description: z
-    .string()
-    .trim()
-    .min(1, "Description is required")
-    .max(5000, "Description must not exceed 5000 characters"),
-
-  technologies: z
-    .array(z.string().trim().min(1, "Technology cannot be empty"))
-    .min(1, "Add at least one technology"),
-
-  category: z
-    .string()
-    .trim()
-    .min(1, "Category is required")
-    .max(50, "Category must not exceed 50 characters"),
-
-  image: z
-    .union([z.instanceof(File), z.string(), z.null()])
-    .optional(),
-
-  githubUrl: z
-    .union([
-      z.string().url("Enter a valid GitHub URL"),
-      z.literal(""),
-    ])
-    .optional(),
-
-  liveUrl: z
-    .union([
-      z.string().url("Enter a valid live URL"),
-      z.literal(""),
-    ])
-    .optional(),
-
-  featured: z.boolean(),
-
-  status: z.enum(["completed", "in-progress", "planned"]),
-
-  order: z
-    .number()
-    .int("Order must be a whole number")
-    .min(0, "Order cannot be negative"),
-});
 
 const ProjectForm = ({
   initialValues,
@@ -97,6 +40,7 @@ const ProjectForm = ({
       githubUrl: "",
       liveUrl: "",
       featured: false,
+      published: false,
       status: "completed",
       order: 0,
     },
@@ -132,6 +76,7 @@ const ProjectForm = ({
       liveUrl: initialValues.liveUrl || "",
 
       featured: Boolean(initialValues.featured),
+      published: Boolean(initialValues.published),
 
       status: initialValues.status || "completed",
 
@@ -462,6 +407,25 @@ const ProjectForm = ({
                   <FormDescription>
                     Highlight this project in featured sections.
                   </FormDescription>
+                </div>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="published"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start gap-3 rounded-lg border p-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    disabled={isSubmitting}
+                  />
+                </FormControl>
+                <div className="space-y-1">
+                  <FormLabel>Published project</FormLabel>
+                  <FormDescription>Show this project on your portfolio.</FormDescription>
                 </div>
               </FormItem>
             )}

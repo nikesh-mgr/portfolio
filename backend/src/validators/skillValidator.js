@@ -1,15 +1,11 @@
 import { z } from "zod";
 
-const categorySchema = z.enum([
-  "frontend",
-  "backend",
-  "database",
-  "devops",
-  "tools",
-  "other",
-], {
-  message: "Invalid skill category",
-});
+const categorySchema = z.enum(
+  ["frontend", "backend", "database", "devops", "tools", "other"],
+  {
+    message: "Invalid skill category",
+  }
+);
 
 export const createSkillSchema = z.object({
   name: z
@@ -36,16 +32,11 @@ export const createSkillSchema = z.object({
   description: z
     .string()
     .trim()
-    .max(
-      500,
-      "Skill description cannot exceed 500 characters"
-    )
+    .max(500, "Skill description cannot exceed 500 characters")
     .nullable()
     .optional(),
 
-  featured: z
-    .boolean()
-    .default(false),
+  featured: z.boolean().default(false),
 
   order: z
     .number()
@@ -53,10 +44,11 @@ export const createSkillSchema = z.object({
     .min(0, "Order cannot be negative")
     .default(0),
 
-  isActive: z
-    .boolean()
-    .default(true),
+  isActive: z.boolean().default(true),
 });
 
-export const updateSkillSchema =
-  createSkillSchema.partial();
+export const updateSkillSchema = createSkillSchema.partial().extend({
+  featured: z.boolean().optional(),
+  order: z.number().int().min(0).optional(),
+  isActive: z.boolean().optional(),
+});

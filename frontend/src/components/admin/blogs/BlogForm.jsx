@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -117,12 +117,12 @@ const BlogForm = ({
   |--------------------------------------------------------------------------
   */
 
-  const [coverImage, setCoverImage] = useState({
+  const [coverImage, setCoverImage] = useState(() => ({
     file: null,
-    preview: null,
-    existingUrl: null,
+    preview: initialValues?.coverImage?.url || null,
+    existingUrl: initialValues?.coverImage?.url || null,
     remove: false,
-  });
+  }));
 
   /*
   |--------------------------------------------------------------------------
@@ -143,30 +143,11 @@ const BlogForm = ({
 
   /*
   |--------------------------------------------------------------------------
-  | Update Existing Cover Image
-  |--------------------------------------------------------------------------
-  */
-
-  useEffect(() => {
-    const existingCoverUrl = initialValues?.coverImage?.url || null;
-
-    setCoverImage({
-      file: null,
-      preview: existingCoverUrl,
-      existingUrl: existingCoverUrl,
-      remove: false,
-    });
-  }, [initialValues]);
-
-  /*
-  |--------------------------------------------------------------------------
   | Cover Image Change
   |--------------------------------------------------------------------------
   */
 
   const handleCoverImageChange = (imageData) => {
-    console.log("COVER IMAGE CHANGED:", imageData);
-
     setCoverImage(imageData);
   };
 
@@ -177,14 +158,7 @@ const BlogForm = ({
   */
 
   const handleSubmit = (values) => {
-    console.log("========================================");
-    console.log("FORM VALID");
-    console.log("FORM VALUES:", values);
-    console.log("COVER IMAGE:", coverImage);
-    console.log("========================================");
-
     if (typeof onSubmit !== "function") {
-      console.error("BlogForm: onSubmit prop is not a function.");
       return;
     }
 
@@ -198,11 +172,6 @@ const BlogForm = ({
   */
 
   const handleInvalid = (errors) => {
-    console.error("========================================");
-    console.error("FORM VALIDATION FAILED");
-    console.error("VALIDATION ERRORS:", errors);
-    console.error("========================================");
-
     /*
     |--------------------------------------------------------------------------
     | Focus first invalid field
@@ -574,4 +543,4 @@ const BlogForm = ({
 };
 
 export default BlogForm;
-    // TODO: Implementar
+// TODO: Implementar

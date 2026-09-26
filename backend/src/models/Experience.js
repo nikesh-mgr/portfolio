@@ -127,12 +127,9 @@ const experienceSchema = new mongoose.Schema(
  * Validate employment dates.
  */
 experienceSchema.pre("validate", function () {
+  if (this.current) this.endDate = null;
   if (this.endDate && this.startDate && this.endDate < this.startDate) {
     this.invalidate("endDate", "End date cannot be before start date");
-  }
-
-  if (this.current) {
-    this.endDate = null;
   }
 });
 

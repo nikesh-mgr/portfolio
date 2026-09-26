@@ -33,7 +33,7 @@ const getBlogDate = (blog) => {
 
 const LatestArticles = () => {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["blogs", "latest"],
+    queryKey: ["blogs", "public"],
     queryFn: getBlogs,
   });
 

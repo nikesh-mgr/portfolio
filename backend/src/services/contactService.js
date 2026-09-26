@@ -78,7 +78,7 @@ export const getContactById = async (contactId) => {
  * Update contact message status.
  */
 export const updateContactStatus = async (contactId, status) => {
-  const allowedStatuses = ["new", "read", "replied", "archived"];
+  const allowedStatuses = ["new", "in-progress", "resolved", "archived"];
 
   if (!allowedStatuses.includes(status)) {
     throw new ApiError(400, "Invalid contact status");
@@ -88,16 +88,16 @@ export const updateContactStatus = async (contactId, status) => {
     status,
   };
 
-  if (status === "replied") {
+  if (status === "resolved") {
     updateData.repliedAt = new Date();
   }
 
-  if (status !== "replied") {
+  if (status !== "resolved") {
     updateData.repliedAt = null;
   }
 
   const contact = await Contact.findByIdAndUpdate(contactId, updateData, {
-    new: true,
+    returnDocument: "after",
     runValidators: true,
   }).lean();
 
@@ -121,6 +121,8 @@ export const deleteContact = async (contactId) => {
   return contact;
 };
 export const updateContactReadStatus = async (id, isRead) => {
+  if (typeof isRead !== "boolean")
+    throw new ApiError(400, "isRead must be a boolean");
   const contact = await Contact.findById(id);
 
   if (!contact) {

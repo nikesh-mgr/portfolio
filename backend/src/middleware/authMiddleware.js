@@ -1,7 +1,9 @@
+import Admin from "../models/Admin.js";
+import mongoose from "mongoose";
 import ApiError from "../utils/apiError.js";
 import { verifyAccessToken } from "../utils/jwt.js";
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
     const token = req.cookies?.accessToken;
 
@@ -21,13 +23,20 @@ const authMiddleware = (req, res, next) => {
      *
      * Normalize it for the rest of the application.
      */
-    if (!decoded.sub || !decoded.role) {
+    if (!mongoose.isObjectIdOrHexString(decoded.sub) || !decoded.role) {
       throw new ApiError(401, "Invalid authentication token");
     }
 
     if (decoded.role !== "admin") {
       throw new ApiError(403, "Admin access required");
     }
+
+    const admin = await Admin.findById(decoded.sub)
+      .select("role isActive")
+      .lean();
+    if (!admin) throw new ApiError(401, "Authentication required");
+    if (!admin.isActive || admin.role !== "admin")
+      throw new ApiError(403, "Admin access required");
 
     req.admin = {
       id: decoded.sub,
@@ -44,7 +53,7 @@ const authMiddleware = (req, res, next) => {
       return next(new ApiError(401, "Authentication token has expired"));
     }
 
-    if (error.name === "JsonWebTokenError") {
+    if (["JsonWebTokenError", "NotBeforeError"].includes(error.name)) {
       return next(new ApiError(401, "Invalid authentication token"));
     }
 

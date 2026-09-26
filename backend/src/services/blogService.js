@@ -127,7 +127,8 @@ export const updateBlog = async (blogId, blogData) => {
    * accidentally overwritten through
    * the normal blog update endpoint.
    */
-  const { coverImage, ...safeBlogData } = blogData;
+  const safeBlogData = { ...blogData };
+  delete safeBlogData.coverImage;
 
   /*
    * Check duplicate title.

@@ -1,3 +1,8 @@
+import { parseInput } from "../validators/input.js";
+import {
+  settingsSchema,
+  updateSettingsSchema,
+} from "../validators/siteSettingsValidator.js";
 import {
   getSiteSettings,
   createSiteSettings,
@@ -21,7 +26,9 @@ export const getSettings = async (req, res) => {
  * Create site settings.
  */
 export const createSettings = async (req, res) => {
-  const settings = await createSiteSettings(req.body);
+  const settings = await createSiteSettings(
+    parseInput(settingsSchema, req.body)
+  );
 
   res.status(201).json({
     success: true,
@@ -34,7 +41,9 @@ export const createSettings = async (req, res) => {
  * Update site settings.
  */
 export const updateSettings = async (req, res) => {
-  const settings = await updateSiteSettings(req.body);
+  const settings = await updateSiteSettings(
+    parseInput(updateSettingsSchema, req.body)
+  );
 
   res.status(200).json({
     success: true,

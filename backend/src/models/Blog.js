@@ -157,7 +157,7 @@ const blogSchema = new mongoose.Schema(
  * Automatically generate slug from title.
  */
 blogSchema.pre("validate", function () {
-  if (this.isModified("title") && this.title) {
+  if (!this.slug && this.title) {
     this.slug = createSlug(this.title);
   }
 });

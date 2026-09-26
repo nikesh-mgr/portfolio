@@ -1,7 +1,7 @@
 import api from "./axios";
 
-export const getSkills = async ({ category } = {}) => {
-  const response = await api.get("/skills", {
+export const getSkills = async ({ category, admin = false } = {}) => {
+  const response = await api.get(admin ? "/skills/admin" : "/skills", {
     params: category ? { category } : undefined,
   });
 

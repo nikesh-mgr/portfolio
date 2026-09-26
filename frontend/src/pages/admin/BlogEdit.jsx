@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -28,10 +29,51 @@ const BlogEdit = () => {
   */
 
   const blogQuery = useQuery({
-    queryKey: ["blog", id],
+    queryKey: ["blog", "admin", id],
     queryFn: () => getBlogById(id),
     enabled: Boolean(id),
   });
+
+  const blog = blogQuery.data?.blog || blogQuery.data?.data || blogQuery.data;
+  const formInitialValues = useMemo(() => {
+    if (!blog) return null;
+    return {
+      title: blog.title || "",
+
+      slug: blog.slug || "",
+
+      excerpt: blog.excerpt || "",
+
+      content: blog.content || "",
+
+      category: blog.category || "",
+
+      tags: Array.isArray(blog.tags) ? blog.tags.join(", ") : blog.tags || "",
+
+      published: Boolean(blog.published),
+
+      readingTime: Number(blog.readingTime) || 1,
+
+      metaTitle: blog.seo?.metaTitle || "",
+
+      metaDescription: blog.seo?.metaDescription || "",
+
+      keywords: Array.isArray(blog.seo?.keywords)
+        ? blog.seo.keywords.join(", ")
+        : blog.seo?.keywords || "",
+
+      canonicalUrl: blog.seo?.canonicalUrl || "",
+
+      /*
+       * Keep coverImage because BlogForm uses it
+       * to initialize the existing image.
+       */
+      coverImage: blog.coverImage || {
+        url: null,
+        publicId: null,
+      },
+    };
+  }, [blog]);
 
   /*
   |--------------------------------------------------------------------------
@@ -101,13 +143,6 @@ const BlogEdit = () => {
         },
       };
 
-      console.log("========================================");
-      console.log("UPDATING BLOG");
-      console.log("BLOG ID:", id);
-      console.log("PAYLOAD:", payload);
-      console.log("COVER IMAGE:", coverImage);
-      console.log("========================================");
-
       /*
       |--------------------------------------------------------------------------
       | STEP 1: Update normal blog fields
@@ -119,8 +154,6 @@ const BlogEdit = () => {
         data: payload,
       });
 
-      console.log("BLOG UPDATE RESPONSE:", response);
-
       /*
       |--------------------------------------------------------------------------
       | STEP 2: Upload new cover image
@@ -128,11 +161,7 @@ const BlogEdit = () => {
       */
 
       if (coverImage?.file instanceof File) {
-        console.log("UPLOADING NEW COVER IMAGE:", coverImage.file);
-
         const uploadResponse = await uploadBlogCoverImage(id, coverImage.file);
-
-        console.log("NEW COVER IMAGE RESPONSE:", uploadResponse);
       }
 
       /*
@@ -141,9 +170,11 @@ const BlogEdit = () => {
       |--------------------------------------------------------------------------
       */
 
-      if (coverImage?.remove === true && !coverImage?.file) {
-        console.log("DELETING EXISTING COVER IMAGE");
-
+      if (
+        coverImage?.remove === true &&
+        !coverImage?.file &&
+        blog.coverImage?.publicId
+      ) {
         await deleteBlogCoverImage(id);
       }
 
@@ -168,7 +199,7 @@ const BlogEdit = () => {
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["blog", id],
+        queryKey: ["blog"],
       });
 
       await queryClient.invalidateQueries({
@@ -187,13 +218,6 @@ const BlogEdit = () => {
     */
 
     onError: (error) => {
-      console.error("========================================");
-      console.error("UPDATE BLOG ERROR");
-      console.error("ERROR:", error);
-      console.error("RESPONSE:", error?.response);
-      console.error("RESPONSE DATA:", error?.response?.data);
-      console.error("========================================");
-
       toast.error(
         error?.response?.data?.message ||
           error?.message ||
@@ -209,13 +233,6 @@ const BlogEdit = () => {
   */
 
   const handleSubmit = (values, coverImage) => {
-    console.log("========================================");
-    console.log("EDIT FORM SUBMITTED");
-    console.log("VALUES:", values);
-    console.log("COVER IMAGE:", coverImage);
-    console.log("BLOG ID:", id);
-    console.log("========================================");
-
     if (!id) {
       toast.error("Invalid blog ID.");
       return;
@@ -296,8 +313,6 @@ const BlogEdit = () => {
   |--------------------------------------------------------------------------
   */
 
-  const blog = blogQuery.data?.blog || blogQuery.data?.data || blogQuery.data;
-
   /*
   |--------------------------------------------------------------------------
   | Blog not found
@@ -355,50 +370,6 @@ const BlogEdit = () => {
   |
   */
 
-  const formInitialValues = {
-    title: blog.title || "",
-
-    slug: blog.slug || "",
-
-    excerpt: blog.excerpt || "",
-
-    content: blog.content || "",
-
-    category: blog.category || "",
-
-    tags: Array.isArray(blog.tags) ? blog.tags.join(", ") : blog.tags || "",
-
-    published: Boolean(blog.published),
-
-    readingTime: Number(blog.readingTime) || 1,
-
-    metaTitle: blog.seo?.metaTitle || "",
-
-    metaDescription: blog.seo?.metaDescription || "",
-
-    keywords: Array.isArray(blog.seo?.keywords)
-      ? blog.seo.keywords.join(", ")
-      : blog.seo?.keywords || "",
-
-    canonicalUrl: blog.seo?.canonicalUrl || "",
-
-    /*
-     * Keep coverImage because BlogForm uses it
-     * to initialize the existing image.
-     */
-    coverImage: blog.coverImage || {
-      url: null,
-      publicId: null,
-    },
-  };
-
-  console.log("========================================");
-  console.log("BLOG EDIT");
-  console.log("RAW BLOG:", blog);
-  console.log("FORM INITIAL VALUES:", formInitialValues);
-  console.log("COVER IMAGE:", formInitialValues.coverImage);
-  console.log("========================================");
-
   /*
   |--------------------------------------------------------------------------
   | Page
@@ -424,6 +395,7 @@ const BlogEdit = () => {
 
       <div className="mt-8">
         <BlogForm
+          key={id}
           initialValues={formInitialValues}
           onSubmit={handleSubmit}
           isSubmitting={updateMutation.isPending}

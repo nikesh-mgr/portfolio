@@ -17,6 +17,7 @@ import uploadMiddleware from "../middleware/uploadMiddleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
 
 const router = express.Router();
+router.get("/admin", authMiddleware, asyncHandler(getAllProjects));
 
 /*
 |--------------------------------------------------------------------------
@@ -46,7 +47,7 @@ router.get("/slug/:slug", asyncHandler(getProjectBySlug));
  * Example:
  * GET /api/projects/65f123...
  */
-router.get("/:id", asyncHandler(getProjectById));
+router.get("/:id", authMiddleware, asyncHandler(getProjectById));
 
 /*
 |--------------------------------------------------------------------------

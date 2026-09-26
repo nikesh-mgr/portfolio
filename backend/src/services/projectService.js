@@ -188,15 +188,19 @@ export const addProjectImages = async (projectId, images) => {
     throw new ApiError(400, "Invalid project ID");
   }
 
-  const project = await Project.findById(projectId);
-
+  const project = await Project.findOneAndUpdate(
+    {
+      _id: projectId,
+      $expr: { $lte: [{ $size: "$images" }, 10 - images.length] },
+    },
+    { $push: { images: { $each: images } } },
+    { returnDocument: "after", runValidators: true }
+  );
   if (!project) {
-    throw new ApiError(404, "Project not found");
+    if (!(await Project.exists({ _id: projectId })))
+      throw new ApiError(404, "Project not found");
+    throw new ApiError(400, "A project can have at most 10 gallery images");
   }
-
-  project.images.push(...images);
-
-  await project.save();
 
   return project;
 };

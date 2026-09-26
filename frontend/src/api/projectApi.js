@@ -7,7 +7,7 @@ import api from "./axios";
 |--------------------------------------------------------------------------
 */
 export const getProjects = async () => {
-  const response = await api.get("/projects");
+  const response = await api.get("/projects/admin");
 
   return response.data;
 };
@@ -146,21 +146,21 @@ export const uploadProjectImages = async ({ id, files }) => {
 */
 export const deleteProjectImage = async ({
   id,
-  imageUrl,
+  publicId,
 }) => {
   if (!id) {
     throw new Error("Project ID is required.");
   }
 
-  if (!imageUrl) {
-    throw new Error("Image URL is required.");
+  if (!publicId) {
+    throw new Error("Image public ID is required.");
   }
 
   const response = await api.delete(
     `/projects/${id}/images`,
     {
       data: {
-        imageUrl,
+        publicId,
       },
     },
   );

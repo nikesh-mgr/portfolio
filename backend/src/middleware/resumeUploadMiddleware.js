@@ -1,4 +1,5 @@
 import multer from "multer";
+import ApiError from "../utils/apiError.js";
 
 const storage = multer.memoryStorage();
 
@@ -8,7 +9,7 @@ const fileFilter = (req, file, cb) => {
     return;
   }
 
-  cb(new Error("Only PDF files are allowed"), false);
+  cb(new ApiError(400, "Only PDF files are allowed"), false);
 };
 
 const resumeUploadMiddleware = multer({
@@ -18,6 +19,9 @@ const resumeUploadMiddleware = multer({
 
   limits: {
     fileSize: 5 * 1024 * 1024,
+    fields: 100,
+    fieldSize: 1024 * 1024,
+    parts: 110,
   },
 });
 

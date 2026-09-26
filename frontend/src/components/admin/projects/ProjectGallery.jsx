@@ -17,7 +17,7 @@ const ProjectGallery = ({
   const inputRef = useRef(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [deletingImageUrl, setDeletingImageUrl] = useState(null);
+  const [deletingPublicId, setDeletingPublicId] = useState(null);
 
   const currentImages = Array.isArray(images) ? images : [];
 
@@ -107,13 +107,13 @@ const ProjectGallery = ({
     }
   };
 
-  const handleDelete = async (imageUrl) => {
-    setDeletingImageUrl(imageUrl);
+  const handleDelete = async (publicId) => {
+    setDeletingPublicId(publicId);
 
     try {
       await deleteProjectImage({
         id: projectId,
-        imageUrl,
+        publicId,
       });
 
       toast.success("Gallery image deleted successfully.");
@@ -124,7 +124,7 @@ const ProjectGallery = ({
         error?.response?.data?.message || "Failed to delete gallery image.",
       );
     } finally {
-      setDeletingImageUrl(null);
+      setDeletingPublicId(null);
     }
   };
 
@@ -165,7 +165,7 @@ const ProjectGallery = ({
               return null;
             }
 
-            const isDeleting = deletingImageUrl === imageUrl;
+            const isDeleting = deletingPublicId === image.publicId;
 
             return (
               <div
@@ -184,8 +184,8 @@ const ProjectGallery = ({
                       type="button"
                       variant="destructive"
                       size="icon"
-                      onClick={() => handleDelete(imageUrl)}
-                      disabled={disabled || isDeleting || isUploading}
+                      onClick={() => handleDelete(image.publicId)}
+                      disabled={disabled || !image.publicId || isDeleting || isUploading}
                       aria-label={`Delete gallery image ${index + 1}`}
                     >
                       {isDeleting ? (

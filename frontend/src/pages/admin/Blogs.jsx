@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
-import { deleteBlog, getBlogs } from "@/api/blogApi";
+import { deleteBlog, getAdminBlogs } from "@/api/blogApi";
 
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import DeleteConfirmDialog from "@/components/admin/DeleteConfirmDialog";
@@ -33,8 +33,8 @@ const Blogs = () => {
    */
 
   const blogsQuery = useQuery({
-    queryKey: ["blogs"],
-    queryFn: getBlogs,
+    queryKey: ["blogs", "admin"],
+    queryFn: getAdminBlogs,
   });
 
   /*

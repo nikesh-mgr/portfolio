@@ -1,3 +1,4 @@
+import { getResumeFileUrl } from "@/utils/safeUrl";
 import { Download, ExternalLink, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -11,7 +12,7 @@ const ResumeButton = ({ variant = "primary", showLabel = true }) => {
   });
 
   const resume = data?.resume || null;
-  const resumeUrl = resume?.file?.url || null;
+  const resumeUrl = getResumeFileUrl(resume);
 
   if (isLoading) {
     return (

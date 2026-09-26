@@ -1,3 +1,4 @@
+import resumeTransaction from "../utils/resumeTransaction.js";
 import mongoose from "mongoose";
 
 import Resume from "../models/Resume.js";
@@ -36,46 +37,39 @@ export const getResumeById = async (resumeId) => {
 /**
  * Create resume.
  */
-export const createResume = async (resumeData) => {
-  /*
-   * Only one active resume should exist.
-   */
-  await Resume.updateMany(
-    { isActive: true },
-    {
-      $set: {
-        isActive: false,
-      },
-    }
-  );
-
-  const resume = await Resume.create({
-    ...resumeData,
-    isActive: true,
+export const createResume = async (resumeData) =>
+  resumeTransaction(async (session) => {
+    await Resume.updateMany(
+      { isActive: true },
+      { $set: { isActive: false } },
+      { session }
+    );
+    const [resume] = await Resume.create([{ ...resumeData, isActive: true }], {
+      session,
+    });
+    return resume;
   });
-
-  return resume;
-};
 
 /**
  * Update resume.
  */
 export const updateResume = async (resumeId, resumeData) => {
-  if (!mongoose.Types.ObjectId.isValid(resumeId)) {
+  if (!mongoose.isObjectIdOrHexString(resumeId))
     throw new ApiError(400, "Invalid resume ID");
-  }
-
-  const resume = await Resume.findById(resumeId);
-
-  if (!resume) {
-    throw new ApiError(404, "Resume not found");
-  }
-
-  Object.assign(resume, resumeData);
-
-  await resume.save();
-
-  return resume;
+  return resumeTransaction(async (session) => {
+    const resume = await Resume.findById(resumeId).session(session);
+    if (!resume) throw new ApiError(404, "Resume not found");
+    if (resumeData.isActive === true) {
+      await Resume.updateMany(
+        { _id: { $ne: resumeId }, isActive: true },
+        { $set: { isActive: false } },
+        { session }
+      );
+    }
+    Object.assign(resume, resumeData);
+    await resume.save({ session });
+    return resume;
+  });
 };
 
 /**

@@ -28,6 +28,9 @@ export const createSkill = async (skillData) => {
 export const getAllSkills = async ({ category, activeOnly = false } = {}) => {
   const filter = {};
 
+  if (category !== undefined && typeof category !== "string")
+    throw new ApiError(400, "Invalid category");
+
   if (category) {
     filter.category = category.toLowerCase();
   }

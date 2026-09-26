@@ -12,6 +12,8 @@ import authMiddleware from "../middleware/authMiddleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
 
 const router = express.Router();
+router.get("/admin/:id", authMiddleware, asyncHandler(getSkill));
+router.get("/admin", authMiddleware, asyncHandler(getSkills));
 
 /**
  * Public routes.

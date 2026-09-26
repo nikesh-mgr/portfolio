@@ -10,7 +10,7 @@ const BlogDetails = () => {
   const { slug } = useParams();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["blog", slug],
+    queryKey: ["blog", "public", slug],
     queryFn: () => getBlogBySlug(slug),
     enabled: Boolean(slug),
   });
@@ -46,7 +46,7 @@ const BlogDetails = () => {
     );
   }
 
-  if (isError || !blog) {
+  if (isError || !blog || blog.published !== true) {
     return (
       <div className="container-page flex min-h-[70vh] items-center justify-center py-16">
         <motion.div

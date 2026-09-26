@@ -1,3 +1,4 @@
+import { getResumeFileUrl } from "@/utils/safeUrl";
 import {
   AlertCircle,
   Download,
@@ -42,7 +43,7 @@ const Resume = () => {
 
   const resume = data?.resume || data?.data || null;
 
-  const resumeUrl = resume?.url || resume?.fileUrl || null;
+  const resumeUrl = getResumeFileUrl(resume);
 
   if (isLoading) {
     return (

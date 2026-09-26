@@ -71,6 +71,8 @@ const adminSchema = new mongoose.Schema(
   }
 );
 
+adminSchema.index({ role: 1 }, { unique: true });
+
 const Admin = mongoose.model("Admin", adminSchema);
 
 export default Admin;

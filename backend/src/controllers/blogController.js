@@ -1,3 +1,9 @@
+import logger from "../utils/logger.js";
+import { parseInput } from "../validators/input.js";
+import {
+  createBlogSchema,
+  updateBlogSchema,
+} from "../validators/blogValidator.js";
 import {
   createBlog,
   getAllBlogs,
@@ -31,9 +37,7 @@ import ApiError from "../utils/apiError.js";
  * POST /api/blogs/:id/cover-image
  */
 export const createBlogController = async (req, res) => {
-  const blogData = {
-    ...req.body,
-  };
+  const blogData = parseInput(createBlogSchema, req.body);
 
   const blog = await createBlog(blogData);
 
@@ -62,7 +66,7 @@ export const createBlogController = async (req, res) => {
  * ?published=false
  */
 export const getBlogs = async (req, res) => {
-  const publishedOnly = req.query.published !== "false";
+  const publishedOnly = !req.admin;
 
   const blogs = await getAllBlogs({
     publishedOnly,
@@ -137,21 +141,7 @@ export const getBlogByIdController = async (req, res) => {
  * Cover image is handled separately.
  */
 export const updateBlogController = async (req, res) => {
-  console.log("========================================");
-
-  console.log("UPDATE BLOG CONTROLLER");
-
-  console.log("BLOG ID:", req.params.id);
-
-  console.log("BODY:", req.body);
-
-  console.log("FILE:", req.file);
-
-  console.log("========================================");
-
-  const blogData = {
-    ...req.body,
-  };
+  const blogData = parseInput(updateBlogSchema, req.body);
 
   const blog = await updateBlog(req.params.id, blogData);
 
@@ -183,18 +173,6 @@ export const uploadBlogCoverImageController = async (req, res) => {
   let uploadedImage = null;
 
   try {
-    console.log("========================================");
-
-    console.log("BLOG COVER IMAGE UPLOAD");
-
-    console.log("BLOG ID:", req.params.id);
-
-    console.log("FILE:", req.file);
-
-    console.log("BODY:", req.body);
-
-    console.log("========================================");
-
     /*
      * Multer must receive the file.
      */
@@ -208,20 +186,15 @@ export const uploadBlogCoverImageController = async (req, res) => {
      */
     const existingBlog = await getBlogById(req.params.id);
 
-    console.log("EXISTING COVER:", existingBlog.coverImage);
-
     /*
      * Upload file buffer to Cloudinary.
      */
-    console.log("UPLOADING TO CLOUDINARY...");
 
     uploadedImage = await uploadToCloudinary(
       req.file.buffer,
       "portfolio/blogs",
       "image"
     );
-
-    console.log("CLOUDINARY RESULT:", uploadedImage);
 
     /*
      * Verify Cloudinary response.
@@ -239,15 +212,11 @@ export const uploadBlogCoverImageController = async (req, res) => {
       publicId: uploadedImage.public_id,
     };
 
-    console.log("COVER IMAGE TO SAVE:", coverImage);
-
     /*
      * Save new Cloudinary information
      * to MongoDB.
      */
     const blog = await updateBlogCoverImage(req.params.id, coverImage);
-
-    console.log("BLOG AFTER UPDATE:", blog);
 
     /*
      * Delete old Cloudinary image
@@ -256,8 +225,6 @@ export const uploadBlogCoverImageController = async (req, res) => {
     const oldPublicId = existingBlog.coverImage?.publicId;
 
     if (oldPublicId && oldPublicId !== coverImage.publicId) {
-      console.log("DELETING OLD IMAGE:", oldPublicId);
-
       try {
         await deleteFromCloudinary(oldPublicId, "image");
       } catch (error) {
@@ -265,7 +232,7 @@ export const uploadBlogCoverImageController = async (req, res) => {
          * Do not fail the request because
          * old image cleanup failed.
          */
-        console.error("FAILED TO DELETE OLD IMAGE:", error);
+        logger.error({ err: error }, "FAILED TO DELETE OLD IMAGE:");
       }
     }
 
@@ -277,7 +244,7 @@ export const uploadBlogCoverImageController = async (req, res) => {
       blog,
     });
   } catch (error) {
-    console.error("BLOG COVER IMAGE ERROR:", error);
+    logger.error({ err: error }, "BLOG COVER IMAGE ERROR:");
 
     /*
      * If Cloudinary upload succeeded
@@ -288,7 +255,7 @@ export const uploadBlogCoverImageController = async (req, res) => {
       try {
         await deleteFromCloudinary(uploadedImage.public_id, "image");
       } catch (cleanupError) {
-        console.error("FAILED TO CLEANUP NEW IMAGE:", cleanupError);
+        logger.error({ err: cleanupError }, "FAILED TO CLEANUP NEW IMAGE:");
       }
     }
 
@@ -339,7 +306,7 @@ export const deleteBlogCoverImageController = async (req, res) => {
      * Log Cloudinary cleanup failure
      * instead of failing the request.
      */
-    console.error("FAILED TO DELETE CLOUDINARY IMAGE:", error);
+    logger.error({ err: error }, "FAILED TO DELETE CLOUDINARY IMAGE:");
   }
 
   res.status(200).json({
@@ -381,7 +348,7 @@ export const deleteBlogController = async (req, res) => {
     try {
       await deleteFromCloudinary(publicId, "image");
     } catch (error) {
-      console.error("FAILED TO DELETE BLOG COVER:", error);
+      logger.error({ err: error }, "FAILED TO DELETE BLOG COVER:");
     }
   }
 

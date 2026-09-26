@@ -157,7 +157,7 @@ const projectSchema = new mongoose.Schema(
  * Do not use next() here.
  */
 projectSchema.pre("validate", function () {
-  if (this.isModified("title") && this.title) {
+  if (!this.slug && this.title) {
     this.slug = createSlug(this.title);
   }
 });

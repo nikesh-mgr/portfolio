@@ -1,4 +1,5 @@
 import express from "express";
+import requestOriginMiddleware from "./middleware/requestOriginMiddleware.js";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
@@ -30,6 +31,7 @@ const app = express();
 */
 
 app.use(helmet());
+app.use(requestOriginMiddleware);
 
 app.use(
   cors({

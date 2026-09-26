@@ -1,4 +1,7 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
+import setupMiddleware from "../middleware/setupMiddleware.js";
+import resumeUploadMiddleware from "../middleware/resumeUploadMiddleware.js";
 
 import {
   createAdminController,
@@ -8,6 +11,7 @@ import {
   updateAdminProfileImage,
   removeAdminProfileImage,
   deleteAdminResume,
+  updateAdminResume,
 } from "../controllers/authController.js";
 
 import uploadMiddleware from "../middleware/uploadMiddleware.js";
@@ -21,11 +25,23 @@ const router = express.Router();
 
 router.post(
   "/create-admin",
+  setupMiddleware,
   validate(createAdminSchema),
   createAdminController
 );
 
-router.post("/login", validate(loginSchema), loginController);
+router.post(
+  "/login",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    skipSuccessfulRequests: true,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  }),
+  validate(loginSchema),
+  loginController
+);
 
 router.get("/me", authMiddleware, getCurrentAdminController);
 
@@ -49,5 +65,11 @@ router.delete(
   "/profile/resume",
   authMiddleware,
   asyncHandler(deleteAdminResume)
+);
+router.patch(
+  "/profile/resume",
+  authMiddleware,
+  resumeUploadMiddleware.single("resume"),
+  asyncHandler(updateAdminResume)
 );
 export default router;

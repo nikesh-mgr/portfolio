@@ -45,6 +45,7 @@ export const getSkills = async (req, res) => {
 
   const skills = await getAllSkills({
     category,
+    activeOnly: !req.admin,
   });
 
   res.status(200).json({
@@ -59,6 +60,7 @@ export const getSkills = async (req, res) => {
  */
 export const getSkill = async (req, res) => {
   const skill = await getSkillById(req.params.id);
+  if (!req.admin && !skill.isActive) throw new ApiError(404, "Skill not found");
 
   res.status(200).json({
     success: true,

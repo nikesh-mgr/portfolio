@@ -1,3 +1,8 @@
+import { parseInput } from "../validators/input.js";
+import {
+  createProjectSchema,
+  updateProjectSchema,
+} from "../validators/projectValidator.js";
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -22,6 +27,7 @@ export const createProject = async (req, res) => {
   let uploadedImage = null;
 
   try {
+    const projectData = parseInput(createProjectSchema, req.body);
     /**
      * Upload project image to Cloudinary.
      */
@@ -35,9 +41,6 @@ export const createProject = async (req, res) => {
     /**
      * Prepare project data.
      */
-    const projectData = {
-      ...req.body,
-    };
 
     /**
      * Add Cloudinary image information.
@@ -83,7 +86,7 @@ export const createProject = async (req, res) => {
  * Public endpoint.
  */
 export const getAllProjects = async (req, res) => {
-  const publishedOnly = req.query.published === "true";
+  const publishedOnly = !req.admin;
 
   const projects = await getAllProjectsService({
     publishedOnly,
@@ -103,6 +106,7 @@ export const getAllProjects = async (req, res) => {
  */
 export const getProjectBySlug = async (req, res) => {
   const project = await getProjectBySlugService(req.params.slug);
+  if (!project.published) throw new ApiError(404, "Project not found");
 
   res.status(200).json({
     success: true,
@@ -139,14 +143,12 @@ export const updateProject = async (req, res) => {
      * We need the old image's publicId
      * so it can be removed from Cloudinary.
      */
-    const existingProject = await getProjectByIdService(req.params.id);
+    await getProjectByIdService(req.params.id);
 
     /**
      * Prepare updated project data.
      */
-    const projectData = {
-      ...req.body,
-    };
+    const projectData = parseInput(updateProjectSchema, req.body);
 
     /**
      * Upload new image if provided.
@@ -264,6 +266,11 @@ export const addProjectImages = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       throw new ApiError(400, "At least one image is required");
+    }
+
+    const existingProject = await getProjectByIdService(req.params.id);
+    if (existingProject.images.length + req.files.length > 10) {
+      throw new ApiError(400, "A project can have at most 10 gallery images");
     }
 
     /**

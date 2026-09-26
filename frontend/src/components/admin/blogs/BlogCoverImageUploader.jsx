@@ -15,7 +15,8 @@ const BlogCoverImageUploader = ({
 }) => {
   const inputRef = useRef(null);
 
-  const [preview, setPreview] = useState(null);
+  const preview =
+    typeof value === "string" ? value : value?.preview || value?.url || null;
 
   const [isPreparing, setIsPreparing] = useState(false);
 
@@ -25,40 +26,12 @@ const BlogCoverImageUploader = ({
   |--------------------------------------------------------------------------
   */
 
-  useEffect(() => {
-    let imageUrl = null;
-
-    /*
-     * Existing backend image:
-     *
-     * {
-     *   url: "...",
-     *   publicId: "..."
-     * }
-     */
-
-    if (value && typeof value === "object" && value.url) {
-      imageUrl = value.url;
-    }
-
-    /*
-     * Existing plain URL.
-     */
-
-    if (typeof value === "string" && value) {
-      imageUrl = value;
-    }
-
-    /*
-     * New image preview.
-     */
-
-    if (value && typeof value === "object" && value.preview) {
-      imageUrl = value.preview;
-    }
-
-    setPreview(imageUrl);
-  }, [value]);
+  useEffect(
+    () => () => {
+      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
 
   /*
   |--------------------------------------------------------------------------
@@ -105,20 +78,10 @@ const BlogCoverImageUploader = ({
 
     try {
       /*
-       * Revoke previous blob URL.
-       */
-
-      if (preview?.startsWith("blob:")) {
-        URL.revokeObjectURL(preview);
-      }
-
-      /*
        * Create temporary preview.
        */
 
       const objectUrl = URL.createObjectURL(file);
-
-      setPreview(objectUrl);
 
       /*
        * IMPORTANT:
@@ -137,7 +100,7 @@ const BlogCoverImageUploader = ({
       };
 
       onChange?.(imageData);
-    } catch (error) {
+    } catch {
       toast.error("Failed to prepare the image.");
     } finally {
       setIsPreparing(false);
@@ -155,12 +118,6 @@ const BlogCoverImageUploader = ({
   */
 
   const handleRemove = () => {
-    if (preview?.startsWith("blob:")) {
-      URL.revokeObjectURL(preview);
-    }
-
-    setPreview(null);
-
     onChange?.({
       file: null,
 

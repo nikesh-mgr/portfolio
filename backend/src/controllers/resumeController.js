@@ -1,3 +1,6 @@
+import logger from "../utils/logger.js";
+import { parseInput } from "../validators/input.js";
+import { resumeMetadataSchema } from "../validators/resumeValidator.js";
 import {
   getResume,
   getResumeById,
@@ -36,6 +39,7 @@ export const uploadResumeController = async (req, res) => {
   let uploadedFile = null;
 
   try {
+    const metadata = parseInput(resumeMetadataSchema, req.body);
     if (!req.file) {
       throw new ApiError(400, "Resume PDF file is required");
     }
@@ -56,7 +60,7 @@ export const uploadResumeController = async (req, res) => {
      * Create database record.
      */
     const resume = await createResume({
-      title: req.body.title || "Resume",
+      title: metadata.title || "Resume",
 
       file: {
         url: uploadedFile.secure_url,
@@ -80,7 +84,7 @@ export const uploadResumeController = async (req, res) => {
       try {
         await deleteFromCloudinary(uploadedFile.public_id, "raw");
       } catch (cleanupError) {
-        console.error("FAILED TO CLEANUP RESUME:", cleanupError);
+        logger.error({ err: cleanupError }, "FAILED TO CLEANUP RESUME:");
       }
     }
 
@@ -94,11 +98,10 @@ export const uploadResumeController = async (req, res) => {
  * Update resume metadata.
  */
 export const updateResumeController = async (req, res) => {
-  const resume = await updateResume(req.params.id, {
-    title: req.body.title,
-    isActive:
-      req.body.isActive !== undefined ? Boolean(req.body.isActive) : undefined,
-  });
+  const resume = await updateResume(
+    req.params.id,
+    parseInput(resumeMetadataSchema, req.body)
+  );
 
   res.status(200).json({
     success: true,
@@ -127,7 +130,7 @@ export const deleteResumeController = async (req, res) => {
     try {
       await deleteFromCloudinary(resume.file.publicId, "raw");
     } catch (error) {
-      console.error("FAILED TO DELETE RESUME FROM CLOUDINARY:", error);
+      logger.error({ err: error }, "FAILED TO DELETE RESUME FROM CLOUDINARY:");
     }
   }
 

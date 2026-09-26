@@ -1,9 +1,10 @@
 import mongoose from "mongoose";
+import multer from "multer";
 
 import ApiError from "../utils/apiError.js";
 import logger from "../utils/logger.js";
 
-const errorMiddleware = (err, req, res, next) => {
+const errorMiddleware = (err, req, res, _next) => {
   let statusCode = 500;
   let message = "Internal server error";
   let errors = null;
@@ -11,7 +12,16 @@ const errorMiddleware = (err, req, res, next) => {
   /*
    * Application error
    */
-  if (err instanceof ApiError) {
+  if (err instanceof multer.MulterError) {
+    statusCode = err.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+    message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "File is too large"
+        : "Invalid multipart upload";
+  } else if (["entity.parse.failed", "entity.too.large"].includes(err.type)) {
+    statusCode = err.type === "entity.too.large" ? 413 : 400;
+    message = statusCode === 413 ? "Request is too large" : "Invalid JSON body";
+  } else if (err instanceof ApiError) {
     statusCode = err.statusCode;
     message = err.message;
     errors = err.errors;

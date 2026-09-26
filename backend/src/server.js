@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import Admin from "./models/Admin.js";
 
 import app from "./app.js";
 import connectDatabase from "./config/db.js";
@@ -8,6 +9,7 @@ import logger from "./utils/logger.js";
 const startServer = async () => {
   try {
     await connectDatabase();
+    await Admin.init();
 
     const server = app.listen(env.PORT, () => {
       logger.info(`Server running on port ${env.PORT}`);

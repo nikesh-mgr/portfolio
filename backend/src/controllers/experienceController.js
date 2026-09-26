@@ -1,3 +1,8 @@
+import { parseInput } from "../validators/input.js";
+import {
+  createExperienceSchema,
+  updateExperienceSchema,
+} from "../validators/experienceValidator.js";
 import {
   createExperience,
   getAllExperiences,
@@ -18,7 +23,10 @@ export const createExperienceController = async (req, res) => {
   let uploadedLogo = null;
 
   try {
-    const experienceData = parseExperienceFormData(req.body);
+    const experienceData = parseInput(
+      createExperienceSchema,
+      parseExperienceFormData(req.body)
+    );
 
     if (req.file) {
       uploadedLogo = await uploadToCloudinary(
@@ -85,7 +93,10 @@ export const updateExperienceController = async (req, res) => {
   try {
     const existingExperience = await getExperienceById(req.params.id);
 
-    const updateData = parseExperienceFormData(req.body);
+    const updateData = parseInput(
+      updateExperienceSchema,
+      parseExperienceFormData(req.body)
+    );
 
     if (req.file) {
       uploadedLogo = await uploadToCloudinary(

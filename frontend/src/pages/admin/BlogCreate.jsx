@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import BlogForm from "@/components/admin/blogs/BlogForm";
 
 const BlogCreate = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -18,13 +20,6 @@ const BlogCreate = () => {
   */
 
   const handleSubmit = async (values, imageData) => {
-    console.log("========================================");
-    console.log("CREATE BLOG");
-    console.log("VALUES:", values);
-    console.log("IMAGE DATA:", imageData);
-    console.log("IMAGE FILE:", imageData?.file);
-    console.log("========================================");
-
     try {
       setIsSubmitting(true);
 
@@ -88,22 +83,13 @@ const BlogCreate = () => {
         },
       };
 
-      console.log("========================================");
-      console.log("BLOG PAYLOAD");
-      console.log(blogPayload);
-      console.log("========================================");
-
       /*
       |--------------------------------------------------------------------------
       | STEP 1: Create Blog
       |--------------------------------------------------------------------------
       */
 
-      console.log("Creating blog...");
-
       const createResponse = await createBlog(blogPayload);
-
-      console.log("CREATE RESPONSE:", createResponse);
 
       /*
       |--------------------------------------------------------------------------
@@ -114,19 +100,8 @@ const BlogCreate = () => {
       const blog = createResponse?.blog;
 
       if (!blog?._id) {
-        console.error(
-          "Blog creation response does not contain blog._id:",
-          createResponse,
-        );
-
         throw new Error("Blog was created but no blog ID was returned.");
       }
-
-      console.log("========================================");
-      console.log("BLOG CREATED SUCCESSFULLY");
-      console.log("BLOG ID:", blog._id);
-      console.log("BLOG:", blog);
-      console.log("========================================");
 
       /*
       |--------------------------------------------------------------------------
@@ -134,39 +109,25 @@ const BlogCreate = () => {
       |--------------------------------------------------------------------------
       */
 
+      await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+
       if (imageData?.file instanceof File) {
-        console.log("Uploading cover image...");
-
-        console.log("IMAGE FILE:", imageData.file);
-
-        const uploadResponse = await uploadBlogCoverImage(
-          blog._id,
-          imageData.file,
-        );
-
-        console.log("COVER IMAGE UPLOAD RESPONSE:", uploadResponse);
-      } else {
-        console.log("No new cover image selected.");
+        try {
+          await uploadBlogCoverImage(blog._id, imageData.file);
+          await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+        } catch {
+          toast.error(
+            "Blog saved, but the cover upload failed. You can retry from the edit page.",
+          );
+          navigate(`/admin/blogs/${blog._id}/edit`);
+          return;
+        }
       }
-
-      /*
-      |--------------------------------------------------------------------------
-      | SUCCESS
-      |--------------------------------------------------------------------------
-      */
 
       toast.success("Blog created successfully.");
 
       navigate("/admin/blogs");
     } catch (error) {
-      console.error("========================================");
-      console.error("CREATE BLOG ERROR");
-      console.error("ERROR:", error);
-      console.error("RESPONSE:", error?.response);
-      console.error("RESPONSE DATA:", error?.response?.data);
-      console.error("MESSAGE:", error?.message);
-      console.error("========================================");
-
       const message =
         error?.response?.data?.message ||
         error?.response?.data?.error ||

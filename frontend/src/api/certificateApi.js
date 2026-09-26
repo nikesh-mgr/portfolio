@@ -1,7 +1,7 @@
 import api from "./axios";
 
 export const getCertificates = async ({ visible = true } = {}) => {
-  const response = await api.get("/certificates", {
+  const response = await api.get(visible ? "/certificates" : "/certificates/admin", {
     params: {
       visible,
     },

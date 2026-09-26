@@ -7,7 +7,7 @@ const parseBoolean = (value, defaultValue = false) => {
     return value;
   }
 
-  return value === "true";
+  return value === "true" ? true : value === "false" ? false : value;
 };
 
 const parseArray = (value) => {
@@ -39,7 +39,7 @@ const parseNumber = (value, defaultValue = 0) => {
 
   const parsed = Number(value);
 
-  return Number.isFinite(parsed) ? parsed : defaultValue;
+  return parsed;
 };
 
 const parseExperienceFormData = (body) => {
@@ -70,7 +70,7 @@ const parseExperienceFormData = (body) => {
   /*
    * Empty endDate should become null rather than "".
    */
-  if (body.endDate === "" || body.endDate === undefined) {
+  if (body.endDate === "") {
     data.endDate = null;
   }
 

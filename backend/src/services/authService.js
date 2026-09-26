@@ -36,7 +36,7 @@ export const createAdmin = async ({ name, email, password }) => {
   } catch (error) {
     // MongoDB duplicate key error
     if (error.code === 11000) {
-      throw new ApiError(409, "An admin with this email already exists");
+      throw new ApiError(409, "Admin account already exists");
     }
 
     throw error;
@@ -73,6 +73,8 @@ export const loginAdmin = async ({ email, password }) => {
     email: admin.email,
     role: admin.role,
     isActive: admin.isActive,
+    image: admin.image,
+    resume: admin.resume,
     lastLogin: admin.lastLogin,
   };
 
@@ -104,6 +106,8 @@ export const getAdminById = async (adminId) => {
     email: admin.email,
     role: admin.role,
     isActive: admin.isActive,
+    image: admin.image,
+    resume: admin.resume,
     lastLogin: admin.lastLogin,
     createdAt: admin.createdAt,
     updatedAt: admin.updatedAt,

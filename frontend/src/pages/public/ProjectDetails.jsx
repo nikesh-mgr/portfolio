@@ -29,7 +29,7 @@ const ProjectDetails = () => {
     return <ProjectDetailsSkeleton />;
   }
 
-  if (isError || !project) {
+  if (isError || !project || project.published !== true) {
     console.error("Failed to load project:", error);
 
     return <ProjectNotFound />;

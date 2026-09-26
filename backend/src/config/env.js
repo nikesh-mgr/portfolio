@@ -39,6 +39,7 @@ const env = {
   FRONTEND_URL: process.env.FRONTEND_URL,
 
   JWT_SECRET: process.env.JWT_SECRET,
+  ADMIN_SETUP_TOKEN: process.env.ADMIN_SETUP_TOKEN,
 
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",
 

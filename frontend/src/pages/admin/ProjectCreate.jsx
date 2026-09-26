@@ -1,3 +1,4 @@
+import { toProjectFormData } from "@/utils/projectForm";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -32,39 +33,7 @@ const ProjectCreate = () => {
   });
 
   const handleSubmit = (formData) => {
-    const payload = new FormData();
-
-    payload.append("title", formData.title.trim());
-
-    payload.append("shortDescription", formData.shortDescription.trim());
-
-    payload.append("description", formData.description.trim());
-
-    payload.append("category", formData.category.trim());
-
-    formData.technologies.forEach((technology) => {
-      payload.append("technologies", technology);
-    });
-
-    if (formData.githubUrl?.trim()) {
-      payload.append("githubUrl", formData.githubUrl.trim());
-    }
-
-    if (formData.liveUrl?.trim()) {
-      payload.append("liveUrl", formData.liveUrl.trim());
-    }
-
-    payload.append("featured", String(formData.featured));
-
-    payload.append("published", String(formData.published));
-
-    payload.append("status", formData.status);
-
-    payload.append("order", String(formData.order));
-
-    if (formData.image instanceof File) {
-      payload.append("image", formData.image);
-    }
+    const payload = toProjectFormData(formData);
 
     createMutation.mutate(payload);
   };

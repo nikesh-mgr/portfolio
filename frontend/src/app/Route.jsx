@@ -7,32 +7,18 @@ import AdminLayout from "@/layouts/AdminLayout";
 import AuthLayout from "@/layouts/AuthLayout";
 import PublicLayout from "@/layouts/PublicLayout";
 
-import BlogDetails from "@/pages/public/BlogDetails";
-import Blogs from "@/pages/public/Blogs";
-import Contact from "@/pages/public/Contact";
 import Home from "@/pages/public/Home";
-import ProjectDetails from "@/pages/public/ProjectDetails";
-import Projects from "@/pages/public/Projects";
-import Background from "@/pages/public/Background";
-import Resume from "@/pages/public/Resume";
-import Login from "@/pages/auth/Login";
 
-import AdminProjects from "@/pages/admin/Projects";
-import Dashboard from "@/pages/admin/Dashboard";
-import ProjectCreate from "@/pages/admin/ProjectCreate";
-import ProjectEdit from "@/pages/admin/ProjectEdit";
-import BlogCreate from "@/pages/admin/BlogCreate";
-import BlogEdit from "@/pages/admin/BlogEdit";
-import AdminBlogs from "@/pages/admin/Blogs";
-import AdminExperience from "@/pages/admin/Experience";
-import AdminCertificate from "@/pages/admin/Certificate";
-import AdminSkill from "@/pages/admin/Skill";
-import AdminMessages from "@/pages/admin/Messages";
-import AdminResume from "@/pages/admin/Resume";
-import AdminSettings from "@/pages/admin/Settings";
+import RouteError from "@/pages/RouteError";
+import RouteLoading from "@/components/RouteLoading";
+
+const loadPage = (load) => async () => ({ Component: (await load()).default });
+
 const router = createBrowserRouter([
   {
     element: <PublicLayout />,
+    errorElement: <RouteError />,
+    HydrateFallback: RouteLoading,
     children: [
       {
         path: "/",
@@ -40,45 +26,51 @@ const router = createBrowserRouter([
       },
       {
         path: "/projects",
-        element: <Projects />,
+        lazy: loadPage(() => import("@/pages/public/Projects")),
       },
       {
         path: "/projects/:slug",
-        element: <ProjectDetails />,
+        lazy: loadPage(() => import("@/pages/public/ProjectDetails")),
       },
       {
         path: "/blog",
-        element: <Blogs />,
+        lazy: loadPage(() => import("@/pages/public/Blogs")),
       },
       {
         path: "/blog/:slug",
-        element: <BlogDetails />,
+        lazy: loadPage(() => import("@/pages/public/BlogDetails")),
       },
       {
         path: "/contact",
-        element: <Contact />,
+        lazy: loadPage(() => import("@/pages/public/Contact")),
       },
       {
         path: "/background",
-        element: <Background />,
+        lazy: loadPage(() => import("@/pages/public/Background")),
       },
 
       {
+        path: "*",
+        lazy: loadPage(() => import("@/pages/NotFound")),
+      },
+      {
         path: "/resume",
-        element: <Resume />,
+        lazy: loadPage(() => import("@/pages/public/Resume")),
       },
     ],
   },
 
   {
     element: <PublicOnlyRoute />,
+    errorElement: <RouteError />,
+    HydrateFallback: RouteLoading,
     children: [
       {
         element: <AuthLayout />,
         children: [
           {
             path: "/auth/login",
-            element: <Login />,
+            lazy: loadPage(() => import("@/pages/auth/Login")),
           },
         ],
       },
@@ -87,60 +79,68 @@ const router = createBrowserRouter([
 
   {
     element: <ProtectedRoute />,
+    errorElement: <RouteError />,
+    HydrateFallback: RouteLoading,
     children: [
       {
         element: <AdminLayout />,
         children: [
-          { path: "/admin", element: <Navigate to="/dashboard" replace /> },
+          {
+            path: "/admin",
+            element: <Navigate to="/admin/dashboard" replace />,
+          },
           {
             path: "/admin/dashboard",
-            element: <Dashboard />,
+            lazy: loadPage(() => import("@/pages/admin/Dashboard")),
           },
           {
             path: "/admin/projects",
-            element: <AdminProjects />,
+            lazy: loadPage(() => import("@/pages/admin/Projects")),
           },
           {
             path: "/admin/projects/create",
-            element: <ProjectCreate />,
+            lazy: loadPage(() => import("@/pages/admin/ProjectCreate")),
           },
           {
             path: "/admin/projects/:id/edit",
-            element: <ProjectEdit />,
+            lazy: loadPage(() => import("@/pages/admin/ProjectEdit")),
           },
           {
             path: "/admin/blogs",
-            element: <AdminBlogs />,
+            lazy: loadPage(() => import("@/pages/admin/Blogs")),
           },
           {
             path: "/admin/blogs/create",
-            element: <BlogCreate />,
+            lazy: loadPage(() => import("@/pages/admin/BlogCreate")),
           },
           {
             path: "/admin/blogs/:id/edit",
-            element: <BlogEdit />,
+            lazy: loadPage(() => import("@/pages/admin/BlogEdit")),
           },
           {
             path: "/admin/experience",
-            element: <AdminExperience />,
+            lazy: loadPage(() => import("@/pages/admin/Experience")),
           },
           {
             path: "/admin/certificates",
-            element: <AdminCertificate />,
+            lazy: loadPage(() => import("@/pages/admin/Certificate")),
           },
           {
             path: "/admin/skills",
-            element: <AdminSkill />,
+            lazy: loadPage(() => import("@/pages/admin/Skill")),
           },
           {
             path: "/admin/messages",
-            element: <AdminMessages />,
+            lazy: loadPage(() => import("@/pages/admin/Messages")),
           },
           {
-            path: "admin/resume",
-            element: <AdminResume />,
+            path: "/admin/resume",
+            lazy: loadPage(() => import("@/pages/admin/Resume")),
           },
-          { path: "/admin/settings", element: <AdminSettings /> },
+          {
+            path: "/admin/settings",
+            lazy: loadPage(() => import("@/pages/admin/Settings")),
+          },
         ],
       },
     ],

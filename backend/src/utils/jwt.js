@@ -15,5 +15,5 @@ export const generateAccessToken = (admin) => {
 };
 
 export const verifyAccessToken = (token) => {
-  return jwt.verify(token, env.JWT_SECRET);
+  return jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] });
 };

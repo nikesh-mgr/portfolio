@@ -1,11 +1,11 @@
 import { Award, BriefcaseBusiness, FileText, Sparkles } from "lucide-react";
 import { useQueries } from "@tanstack/react-query";
 
-import { getBlogs } from "@/api/blogApi";
+import { getAdminBlogs } from "@/api/blogApi";
 import { getCertificates } from "@/api/certificateApi";
 
 import { getExperiences } from "@/api/experienceApi";
-import { getPublishedProjects } from "@/api/projectApi";
+import { getProjects } from "@/api/projectApi";
 import { getSkills } from "@/api/skillApi";
 import DashboardSection from "@/components/dashboard/DashboardSection";
 import DashboardStatCard from "@/components/dashboard/DashboardStatCard";
@@ -23,12 +23,12 @@ const Dashboard = () => {
   const results = useQueries({
     queries: [
       {
-        queryKey: ["projects", "dashboard"],
-        queryFn: getPublishedProjects,
+        queryKey: ["projects", "admin"],
+        queryFn: getProjects,
       },
       {
-        queryKey: ["blogs", "dashboard"],
-        queryFn: getBlogs,
+        queryKey: ["blogs", "admin"],
+        queryFn: getAdminBlogs,
       },
       {
         queryKey: ["experiences", "dashboard"],
@@ -36,12 +36,12 @@ const Dashboard = () => {
       },
       {
         queryKey: ["skills", "dashboard"],
-        queryFn: getSkills,
+        queryFn: () => getSkills({ admin: true }),
       },
 
       {
         queryKey: ["certificates", "dashboard"],
-        queryFn: getCertificates,
+        queryFn: () => getCertificates({ visible: false }),
       },
     ],
   });
