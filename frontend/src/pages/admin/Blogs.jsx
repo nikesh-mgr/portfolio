@@ -1,17 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertCircle, FileText, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 
-import { deleteBlog, getAdminBlogs } from "@/api/blogApi";
-
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import DeleteConfirmDialog from "@/components/admin/DeleteConfirmDialog";
 import AdminBlogCard from "@/components/admin/blogs/AdminBlogCard";
 import AdminBlogTable from "@/components/admin/blogs/AdminBlogTable";
 import BlogFilters from "@/components/admin/blogs/BlogFilters";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getAdminBlogs, deleteBlog } from "@/api/blogApi";
+import getApiErrorMessage from "@/utils/ApiErrorhandler";
 
 const DEFAULT_FILTERS = {
   search: "",
@@ -25,420 +32,399 @@ const Blogs = () => {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [blogToDelete, setBlogToDelete] = useState(null);
 
-  /*
-   * --------------------------------------------------------------------------
-   * Get admin blogs
-   * --------------------------------------------------------------------------
-   *
-   * The admin endpoint returns both published blogs and drafts.
-   *
-   * Do not use getBlogs() here because GET /blogs is intentionally
-   * restricted to publicly published blogs.
-   */
-
   const blogsQuery = useQuery({
     queryKey: ["blogs"],
     queryFn: getAdminBlogs,
   });
 
-  /*
-   * --------------------------------------------------------------------------
-   * Delete blog
-   * --------------------------------------------------------------------------
-   */
-
   const deleteMutation = useMutation({
     mutationFn: deleteBlog,
 
     onSuccess: async () => {
-      /*
-       * Refresh the admin blog list.
-       */
-
       await queryClient.invalidateQueries({
         queryKey: ["blogs"],
-        refetchType: "all",
       });
-
-      /*
-       * Refresh public blog queries because deleting a published blog
-       * changes the public blog collection.
-       */
-
-      await queryClient.invalidateQueries({
-        queryKey: ["publishedBlogs"],
-        refetchType: "all",
-      });
-
-      setBlogToDelete(null);
 
       toast.success("Blog deleted successfully.");
+      setBlogToDelete(null);
     },
 
     onError: (error) => {
-      const message =
-        error?.response?.data?.message || "Failed to delete blog.";
-
-      toast.error(message);
+      toast.error(
+        getApiErrorMessage(
+          error,
+          "The blog could not be deleted. Please try again.",
+        ),
+      );
     },
   });
 
-  /*
-   * --------------------------------------------------------------------------
-   * Extract blogs
-   * --------------------------------------------------------------------------
-   */
-
   const blogs = useMemo(() => {
-    const data =
-      blogsQuery.data?.blogs || blogsQuery.data?.data || blogsQuery.data || [];
+    const data = blogsQuery.data;
 
-    return Array.isArray(data) ? data : [];
+    return Array.isArray(data?.blogs) ? data.blogs : [];
   }, [blogsQuery.data]);
 
-  /*
-   * --------------------------------------------------------------------------
-   * Extract categories
-   * --------------------------------------------------------------------------
-   *
-   * Categories are derived from the admin blog response so the filter
-   * remains synchronized with the actual stored blog data.
-   */
-
   const categories = useMemo(() => {
-    const categorySet = new Set();
-
-    for (const blog of blogs) {
-      const category = blog?.category?.trim();
-
-      if (category) {
-        categorySet.add(category);
-      }
-    }
-
-    return Array.from(categorySet).sort((a, b) => a.localeCompare(b));
+    return [
+      ...new Set(blogs.map((blog) => blog?.category?.trim()).filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b));
   }, [blogs]);
-
-  /*
-   * --------------------------------------------------------------------------
-   * Filter blogs
-   * --------------------------------------------------------------------------
-   */
 
   const filteredBlogs = useMemo(() => {
     const search = String(filters.search || "")
       .trim()
       .toLowerCase();
 
-    const selectedCategory = String(filters.category || "all")
-      .trim()
-      .toLowerCase();
+    return blogs
+      .filter((blog) => {
+        if (filters.published === "published") {
+          return blog.published === true;
+        }
 
-    const result = blogs.filter((blog) => {
-      /*
-       * Search across useful blog fields.
-       */
+        if (filters.published === "draft") {
+          return blog.published === false;
+        }
 
-      const matchesSearch =
-        !search ||
-        blog?.title?.toLowerCase().includes(search) ||
-        blog?.excerpt?.toLowerCase().includes(search) ||
-        blog?.content?.toLowerCase().includes(search) ||
-        blog?.category?.toLowerCase().includes(search) ||
-        blog?.slug?.toLowerCase().includes(search) ||
-        (Array.isArray(blog?.tags) &&
-          blog.tags.some((tag) => tag?.toLowerCase().includes(search)));
+        return true;
+      })
+      .filter((blog) => {
+        if (filters.category === "all") {
+          return true;
+        }
 
-      /*
-       * Published status.
-       */
+        return blog.category === filters.category;
+      })
+      .filter((blog) => {
+        if (!search) {
+          return true;
+        }
 
-      const matchesPublished =
-        filters.published === "all" ||
-        (filters.published === "published" && blog?.published === true) ||
-        (filters.published === "draft" && blog?.published !== true);
+        const searchableText = [
+          blog.title,
+          blog.excerpt,
+          blog.content,
+          blog.category,
+          blog.slug,
+          ...(Array.isArray(blog.tags) ? blog.tags : []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-      /*
-       * Category.
-       */
+        return searchableText.includes(search);
+      })
+      .sort((a, b) => {
+        const dateA = new Date(
+          a.updatedAt || a.publishedAt || a.createdAt || 0,
+        ).getTime();
 
-      const matchesCategory =
-        selectedCategory === "all" ||
-        blog?.category?.trim().toLowerCase() === selectedCategory;
+        const dateB = new Date(
+          b.updatedAt || b.publishedAt || b.createdAt || 0,
+        ).getTime();
 
-      return matchesSearch && matchesPublished && matchesCategory;
-    });
-
-    /*
-     * Sort newest updated blogs first.
-     *
-     * publishedAt is used when available so recently published
-     * content remains naturally ordered, followed by updated/created
-     * timestamps.
-     */
-
-    return [...result].sort((a, b) => {
-      const dateA = new Date(
-        a?.updatedAt || a?.publishedAt || a?.createdAt || 0,
-      ).getTime();
-
-      const dateB = new Date(
-        b?.updatedAt || b?.publishedAt || b?.createdAt || 0,
-      ).getTime();
-
-      return dateB - dateA;
-    });
+        return dateB - dateA;
+      });
   }, [blogs, filters]);
 
-  /*
-   * --------------------------------------------------------------------------
-   * Delete request
-   * --------------------------------------------------------------------------
-   */
-
   const handleDeleteRequest = (blog) => {
+    if (!blog?._id || deleteMutation.isPending) {
+      return;
+    }
+
     setBlogToDelete(blog);
   };
 
-  /*
-   * --------------------------------------------------------------------------
-   * Confirm delete
-   * --------------------------------------------------------------------------
-   */
-
   const handleDeleteConfirm = () => {
-    if (!blogToDelete) {
+    if (!blogToDelete?._id || deleteMutation.isPending) {
       return;
     }
 
-    const blogId = blogToDelete._id || blogToDelete.id;
-
-    if (!blogId) {
-      toast.error("Unable to identify this blog.");
-      return;
-    }
-
-    deleteMutation.mutate(blogId);
-  };
-
-  /*
-   * --------------------------------------------------------------------------
-   * Filters
-   * --------------------------------------------------------------------------
-   */
-
-  const handleFiltersChange = (nextFilters) => {
-    setFilters({
-      ...DEFAULT_FILTERS,
-      ...nextFilters,
-    });
+    deleteMutation.mutate(blogToDelete._id);
   };
 
   const handleClearFilters = () => {
     setFilters(DEFAULT_FILTERS);
   };
 
-  /*
-   * --------------------------------------------------------------------------
-   * Active filters
-   * --------------------------------------------------------------------------
-   */
+  const handleRetry = () => {
+    blogsQuery.refetch();
+  };
 
-  const hasActiveFilters =
-    Boolean(String(filters.search || "").trim()) ||
-    filters.published !== "all" ||
-    filters.category !== "all";
-
-  /*
-   * --------------------------------------------------------------------------
-   * Loading
-   * --------------------------------------------------------------------------
-   */
-
-  if (blogsQuery.isLoading) {
+  if (blogsQuery.isPending) {
     return (
       <div className="space-y-6">
-        <AdminPageHeader
-          title="Blogs"
-          description="Create and manage the articles published on your portfolio."
-          actionLabel="New blog"
-          actionHref="/admin/blogs/create"
-          actionIcon={Plus}
-        />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-4 w-64" />
+          </div>
 
-        <div className="flex min-h-80 items-center justify-center rounded-xl border bg-card">
-          <p className="text-sm text-muted-foreground">Loading blogs...</p>
+          <Skeleton className="h-10 w-32" />
+        </div>
+
+        <Skeleton className="h-40 w-full rounded-xl" />
+
+        <div className="grid gap-5 md:grid-cols-2 lg:hidden">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="overflow-hidden rounded-xl border bg-card"
+            >
+              <Skeleton className="aspect-video w-full rounded-none" />
+
+              <div className="space-y-3 p-5">
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-4/5" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden lg:block">
+          <Skeleton className="h-80 w-full rounded-xl" />
         </div>
       </div>
     );
   }
-
-  /*
-   * --------------------------------------------------------------------------
-   * Error
-   * --------------------------------------------------------------------------
-   */
 
   if (blogsQuery.isError) {
     return (
-      <div className="space-y-6">
-        <AdminPageHeader
-          title="Blogs"
-          description="Create and manage the articles published on your portfolio."
-          actionLabel="New blog"
-          actionHref="/admin/blogs/create"
-          actionIcon={Plus}
-        />
+      <section
+        role="alert"
+        className="flex min-h-[360px] items-center justify-center rounded-xl border bg-card p-6"
+      >
+        <div className="max-w-md space-y-5 text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-destructive/10">
+            <AlertCircle
+              className="size-6 text-destructive"
+              aria-hidden="true"
+            />
+          </div>
 
-        <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border bg-card px-6 text-center">
-          <p className="text-sm font-medium">Unable to load blogs</p>
+          <div className="space-y-2">
+            <h1 className="text-lg font-semibold">Unable to load blogs</h1>
 
-          <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            {blogsQuery.error?.response?.data?.message ||
-              "Something went wrong while loading your blogs."}
-          </p>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {getApiErrorMessage(
+                blogsQuery.error,
+                "We couldn't load your blogs. Please try again.",
+              )}
+            </p>
+          </div>
 
           <Button
             type="button"
-            variant="outline"
-            className="mt-4"
-            onClick={() => blogsQuery.refetch()}
+            onClick={handleRetry}
+            disabled={blogsQuery.isFetching}
           >
+            <RefreshCw
+              className={`mr-2 size-4 ${
+                blogsQuery.isFetching
+                  ? "animate-spin motion-reduce:animate-none"
+                  : ""
+              }`}
+              aria-hidden="true"
+            />
             Try again
           </Button>
         </div>
-      </div>
+      </section>
     );
   }
-
-  /*
-   * --------------------------------------------------------------------------
-   * Page
-   * --------------------------------------------------------------------------
-   */
 
   return (
     <div className="space-y-6">
       {/* Header */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <FileText
+              className="size-5 text-muted-foreground"
+              aria-hidden="true"
+            />
 
-      <AdminPageHeader
-        title="Blogs"
-        description="Create and manage the articles published on your portfolio."
-        actionLabel="New blog"
-        actionHref="/admin/blogs/create"
-        actionIcon={Plus}
-      />
+            <h1 className="text-2xl font-semibold tracking-tight">Blogs</h1>
+          </div>
+
+          <p className="text-sm text-muted-foreground">
+            Create, manage, publish, and organize your blog posts.
+          </p>
+        </div>
+
+        <Link
+          to="/admin/blogs/create"
+          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto"
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          New Blog
+        </Link>
+      </header>
 
       {/* Filters */}
-
       <BlogFilters
         filters={filters}
         categories={categories}
-        onFiltersChange={handleFiltersChange}
+        onFiltersChange={setFilters}
         onClear={handleClearFilters}
       />
 
-      {/* Result count */}
-
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {filteredBlogs.length} {filteredBlogs.length === 1 ? "blog" : "blogs"}
-          {hasActiveFilters ? " found" : ""}
+      {/* Result Summary */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+        <p>
+          Showing{" "}
+          <span className="font-medium text-foreground">
+            {filteredBlogs.length}
+          </span>{" "}
+          of <span className="font-medium text-foreground">{blogs.length}</span>{" "}
+          {blogs.length === 1 ? "blog" : "blogs"}
         </p>
+
+        {blogsQuery.isFetching && (
+          <span className="inline-flex items-center gap-2" aria-live="polite">
+            <RefreshCw
+              className="size-3.5 animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+            Updating...
+          </span>
+        )}
       </div>
 
-      {/* Empty state */}
+      {/* Content */}
+      {blogs.length === 0 ? (
+        <section className="flex min-h-[320px] items-center justify-center rounded-xl border bg-card p-6">
+          <div className="max-w-md space-y-5 text-center">
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
+              <FileText
+                className="size-6 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </div>
 
-      {filteredBlogs.length === 0 ? (
-        <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-dashed bg-card px-6 text-center">
-          <div className="flex size-12 items-center justify-center rounded-full border bg-muted/40">
-            <Plus className="size-5 text-muted-foreground" />
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold">No blogs yet</h2>
+
+              <p className="text-sm leading-6 text-muted-foreground">
+                Create your first blog post to start building your portfolio
+                content.
+              </p>
+            </div>
+
+            <Link
+              to="/admin/blogs/create"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              Create your first blog
+            </Link>
           </div>
+        </section>
+      ) : filteredBlogs.length === 0 ? (
+        <section className="flex min-h-[280px] items-center justify-center rounded-xl border bg-card p-6">
+          <div className="max-w-md space-y-4 text-center">
+            <h2 className="text-lg font-semibold">No matching blogs</h2>
 
-          <h2 className="mt-4 text-base font-semibold">
-            {hasActiveFilters ? "No matching blogs" : "No blogs yet"}
-          </h2>
+            <p className="text-sm leading-6 text-muted-foreground">
+              No blog posts match the current search and filters.
+            </p>
 
-          <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            {hasActiveFilters
-              ? "Try changing your filters or search terms."
-              : "Create your first blog article to start publishing content."}
-          </p>
-
-          {hasActiveFilters ? (
             <Button
               type="button"
               variant="outline"
-              className="mt-4"
               onClick={handleClearFilters}
             >
               Clear filters
             </Button>
-          ) : (
-            <Link
-              to="/admin/blogs/create"
-              className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Plus className="size-4" />
-              Create blog
-            </Link>
-          )}
-        </div>
+          </div>
+        </section>
       ) : (
         <>
-          {/* Desktop */}
+          {/* Mobile / Tablet Cards */}
+          <div className="grid gap-5 md:grid-cols-2 lg:hidden">
+            {filteredBlogs.map((blog) => (
+              <AdminBlogCard
+                key={blog._id}
+                blog={blog}
+                onDelete={handleDeleteRequest}
+                isDeleting={
+                  deleteMutation.isPending &&
+                  deleteMutation.variables === blog._id
+                }
+              />
+            ))}
+          </div>
 
+          {/* Desktop Table */}
           <AdminBlogTable
             blogs={filteredBlogs}
             onDelete={handleDeleteRequest}
             deletingBlogId={
-              deleteMutation.isPending
-                ? blogToDelete?._id || blogToDelete?.id
-                : null
+              deleteMutation.isPending ? deleteMutation.variables : null
             }
           />
-
-          {/* Mobile / tablet */}
-
-          <div className="grid gap-4 lg:hidden">
-            {filteredBlogs.map((blog) => {
-              const blogId = blog?._id || blog?.id || blog?.slug;
-
-              return (
-                <AdminBlogCard
-                  key={blogId}
-                  blog={blog}
-                  onDelete={handleDeleteRequest}
-                  isDeleting={
-                    deleteMutation.isPending &&
-                    (blogToDelete?._id || blogToDelete?.id) === blogId
-                  }
-                />
-              );
-            })}
-          </div>
         </>
       )}
 
-      {/* Delete confirmation */}
-
-      <DeleteConfirmDialog
+      {/* Delete Confirmation */}
+      <Dialog
         open={Boolean(blogToDelete)}
         onOpenChange={(open) => {
           if (!open && !deleteMutation.isPending) {
             setBlogToDelete(null);
           }
         }}
-        onConfirm={handleDeleteConfirm}
-        isDeleting={deleteMutation.isPending}
-        title="Delete blog?"
-        description={
-          blogToDelete
-            ? `Are you sure you want to delete "${blogToDelete.title}"? This action cannot be undone.`
-            : "This action cannot be undone."
-        }
-        confirmLabel="Delete blog"
-      />
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this blog?</DialogTitle>
+
+            <DialogDescription>
+              This will permanently delete{" "}
+              <span className="font-medium text-foreground">
+                {blogToDelete?.title || "this blog"}
+              </span>
+              . This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setBlogToDelete(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deleteMutation.isPending}
+              aria-busy={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <RefreshCw
+                    className="mr-2 size-4 animate-spin motion-reduce:animate-none"
+                    aria-hidden="true"
+                  />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 size-4" aria-hidden="true" />
+                  Delete Blog
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

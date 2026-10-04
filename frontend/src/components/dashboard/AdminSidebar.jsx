@@ -6,18 +6,28 @@ import { Separator } from "@/components/ui/separator";
 
 import { adminNavigation } from "./adminNavigation";
 
+const getAdminInitial = (name) => {
+  if (!name?.trim()) {
+    return "A";
+  }
+
+  return name.trim().charAt(0).toUpperCase();
+};
+
 const AdminSidebar = ({ admin, onLogout }) => {
+  const adminInitial = getAdminInitial(admin?.name);
+
   return (
     <aside className="hidden h-dvh w-64 shrink-0 flex-col border-r bg-background lg:flex">
       <div className="flex h-16 shrink-0 items-center border-b px-6">
-        <div>
-          <p className="font-semibold tracking-tight">Portfolio CMS</p>
+        <div className="min-w-0">
+          <p className="truncate font-semibold tracking-tight">Portfolio CMS</p>
 
           <p className="text-xs text-muted-foreground">Admin Panel</p>
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-4">
+      <nav className="flex-1 overflow-y-auto p-4" aria-label="Admin navigation">
         <div className="space-y-1">
           {adminNavigation.map((item) => {
             const Icon = item.icon;
@@ -28,15 +38,16 @@ const AdminSidebar = ({ admin, onLogout }) => {
                 to={item.href}
                 className={({ isActive }) =>
                   [
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "flex min-h-10 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                     isActive
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-primary text-primary-foreground shadow-xs"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   ].join(" ")
                 }
               >
-                <Icon className="size-4 shrink-0" />
+                <Icon className="size-4 shrink-0" aria-hidden="true" />
+
                 <span>{item.title}</span>
               </NavLink>
             );
@@ -46,8 +57,11 @@ const AdminSidebar = ({ admin, onLogout }) => {
 
       <div className="shrink-0 border-t p-4">
         <div className="mb-3 flex items-center gap-3 rounded-lg bg-muted/50 p-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-            {admin?.name?.charAt(0)?.toUpperCase() || "A"}
+          <div
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground"
+            aria-hidden="true"
+          >
+            {adminInitial}
           </div>
 
           <div className="min-w-0">
@@ -64,11 +78,12 @@ const AdminSidebar = ({ admin, onLogout }) => {
         <Separator className="mb-3" />
 
         <Button
+          type="button"
           variant="ghost"
-          className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+          className="min-h-10 w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
           onClick={onLogout}
         >
-          <LogOut className="size-4" />
+          <LogOut className="size-4" aria-hidden="true" />
           Logout
         </Button>
       </div>

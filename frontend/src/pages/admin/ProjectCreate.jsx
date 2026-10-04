@@ -4,9 +4,47 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { createProject } from "@/api/projectApi";
+
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import ProjectForm from "@/components/admin/projects/ProjectForm";
 import { Button } from "@/components/ui/button";
+
+import getApiErrorMessage from "@/utils/apiErrorhandler";
+
+const buildProjectFormData = (values) => {
+  const payload = new FormData();
+
+  payload.append("title", values.title.trim());
+  payload.append("shortDescription", values.shortDescription.trim());
+  payload.append("description", values.description.trim());
+  payload.append("category", values.category.trim());
+
+  values.technologies.forEach((technology) => {
+    const cleanedTechnology = technology.trim();
+
+    if (cleanedTechnology) {
+      payload.append("technologies", cleanedTechnology);
+    }
+  });
+
+  if (values.githubUrl?.trim()) {
+    payload.append("githubUrl", values.githubUrl.trim());
+  }
+
+  if (values.liveUrl?.trim()) {
+    payload.append("liveUrl", values.liveUrl.trim());
+  }
+
+  payload.append("featured", String(values.featured));
+  payload.append("status", values.status);
+  payload.append("order", String(values.order));
+
+  if (values.image instanceof File) {
+    payload.append("image", values.image);
+  }
+
+  return payload;
+};
 
 const ProjectCreate = () => {
   const navigate = useNavigate();
@@ -16,13 +54,14 @@ const ProjectCreate = () => {
     mutationFn: createProject,
 
     onSuccess: async (response) => {
-      /*
-       * The projects list may now contain a newly created project,
-       * so invalidate the list cache after successful creation.
-       */
-      await queryClient.invalidateQueries({
-        queryKey: ["projects"],
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["projects"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["projects", "featured"],
+        }),
+      ]);
 
       toast.success(response?.message || "Project created successfully.");
 
@@ -31,69 +70,16 @@ const ProjectCreate = () => {
 
     onError: (error) => {
       toast.error(
-        error?.response?.data?.message || "Failed to create project.",
+        getApiErrorMessage(
+          error,
+          "The project could not be created. Please review the form and try again.",
+        ),
       );
     },
   });
 
-  const handleSubmit = (formData) => {
-    const payload = new FormData();
-
-    /*
-     * Basic project information.
-     */
-    payload.append("title", formData.title.trim());
-    payload.append("shortDescription", formData.shortDescription.trim());
-    payload.append("description", formData.description.trim());
-    payload.append("category", formData.category.trim());
-
-    /*
-     * Send each technology as a separate multipart field.
-     *
-     * Example:
-     * technologies=React
-     * technologies=Node.js
-     * technologies=MongoDB
-     */
-    formData.technologies.forEach((technology) => {
-      const cleanedTechnology = technology.trim();
-
-      if (cleanedTechnology) {
-        payload.append("technologies", cleanedTechnology);
-      }
-    });
-
-    /*
-     * Optional URLs.
-     *
-     * Omit empty values instead of sending "".
-     */
-    if (formData.githubUrl?.trim()) {
-      payload.append("githubUrl", formData.githubUrl.trim());
-    }
-
-    if (formData.liveUrl?.trim()) {
-      payload.append("liveUrl", formData.liveUrl.trim());
-    }
-
-    /*
-     * FormData transmits primitive values as strings.
-     * Backend multipart normalization converts them to their
-     * appropriate boolean/number types before Zod validation.
-     */
-    payload.append("featured", String(formData.featured));
-    payload.append("published", String(formData.published));
-    payload.append("status", formData.status);
-    payload.append("order", String(formData.order));
-
-    /*
-     * Upload the primary image only when a new File exists.
-     */
-    if (formData.image instanceof File) {
-      payload.append("image", formData.image);
-    }
-
-    createMutation.mutate(payload);
+  const handleSubmit = (values) => {
+    createMutation.mutate(buildProjectFormData(values));
   };
 
   return (
@@ -106,8 +92,9 @@ const ProjectCreate = () => {
             type="button"
             variant="outline"
             onClick={() => navigate("/admin/projects")}
+            disabled={createMutation.isPending}
           >
-            <ArrowLeft className="size-4" />
+            <ArrowLeft className="size-4" aria-hidden="true" />
             Back to projects
           </Button>
         }

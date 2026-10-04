@@ -1,206 +1,151 @@
-import { RefreshCw, Sparkles } from "lucide-react";
+import {
+  Braces,
+  Database,
+  GitBranch,
+  Layers3,
+  RefreshCw,
+  Server,
+  Wrench,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { getSkills } from "@/api/skillApi";
 
 const categoryConfig = {
   frontend: {
-    title: "Frontend",
-    description: "Building responsive and accessible user interfaces.",
+    label: "Frontend",
+    description: "Interfaces, interactions, and client-side development.",
+    icon: Braces,
   },
   backend: {
-    title: "Backend",
-    description: "Designing reliable APIs and server-side systems.",
+    label: "Backend",
+    description: "APIs, server-side logic, and application architecture.",
+    icon: Server,
   },
   database: {
-    title: "Database",
-    description: "Working with structured and scalable data systems.",
-  },
-  tools: {
-    title: "Tools",
-    description: "Development tools that support efficient workflows.",
+    label: "Database",
+    description: "Data modeling, storage, and persistence.",
+    icon: Database,
   },
   devops: {
-    title: "DevOps",
+    label: "DevOps",
     description: "Deployment, infrastructure, and development workflows.",
+    icon: GitBranch,
   },
-  languages: {
-    title: "Languages",
-    description: "Programming languages used across my projects.",
+  tools: {
+    label: "Tools",
+    description: "Tools and platforms used throughout development.",
+    icon: Wrench,
   },
   other: {
-    title: "Other",
-    description: "Additional technologies and technical capabilities.",
+    label: "Other",
+    description: "Additional technologies and supporting capabilities.",
+    icon: Layers3,
   },
 };
 
-const normalizeCategory = (category) => {
-  if (!category) {
-    return "other";
-  }
-
-  const normalized = category.toLowerCase().trim();
-
-  if (normalized.includes("front")) {
-    return "frontend";
-  }
-
-  if (normalized.includes("back")) {
-    return "backend";
-  }
-
-  if (normalized.includes("database") || normalized.includes("db")) {
-    return "database";
-  }
-
-  if (
-    normalized.includes("devops") ||
-    normalized.includes("deployment") ||
-    normalized.includes("cloud")
-  ) {
-    return "devops";
-  }
-
-  if (normalized.includes("tool") || normalized.includes("development")) {
-    return "tools";
-  }
-
-  if (normalized.includes("language") || normalized.includes("programming")) {
-    return "languages";
-  }
-
-  return "other";
-};
-
-const getLevelValue = (level) => {
-  if (typeof level === "number") {
-    return Math.min(Math.max(level, 0), 100);
-  }
-
-  if (!level) {
-    return null;
-  }
-
-  const normalized = level.toString().toLowerCase().trim();
-
-  const levelMap = {
-    beginner: 30,
-    basic: 35,
-    intermediate: 60,
-    proficient: 75,
-    advanced: 85,
-    expert: 95,
-  };
-
-  if (levelMap[normalized]) {
-    return levelMap[normalized];
-  }
-
-  const numericValue = Number.parseInt(normalized, 10);
-
-  if (!Number.isNaN(numericValue)) {
-    return Math.min(Math.max(numericValue, 0), 100);
-  }
-
-  return null;
-};
-
-const getLevelLabel = (level) => {
-  if (!level) {
-    return null;
-  }
-
-  if (typeof level === "number") {
-    return `${level}%`;
-  }
-
-  return level;
-};
+const categoryOrder = [
+  "frontend",
+  "backend",
+  "database",
+  "devops",
+  "tools",
+  "other",
+];
 
 const SkillsSection = ({ id = "skills" }) => {
+  const shouldReduceMotion = useReducedMotion();
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["skills"],
     queryFn: getSkills,
   });
 
-  const skills = data?.skills || data?.data || [];
+  const skills = data?.skills ?? [];
 
-  const groupedSkills = skills.reduce((groups, skill) => {
-    const category = normalizeCategory(skill.category);
+  const groupedSkills = categoryOrder.reduce((groups, category) => {
+    const categorySkills = skills
+      .filter((skill) => skill.category === category)
+      .sort(
+        (first, second) => (second.proficiency ?? 0) - (first.proficiency ?? 0),
+      );
 
-    if (!groups[category]) {
-      groups[category] = [];
+    if (categorySkills.length > 0) {
+      groups.push({
+        category,
+        skills: categorySkills,
+      });
     }
 
-    groups[category].push(skill);
-
     return groups;
-  }, {});
-
-  const orderedCategories = Object.keys(groupedSkills).sort((first, second) => {
-    const order = [
-      "frontend",
-      "backend",
-      "database",
-      "languages",
-      "tools",
-      "devops",
-      "other",
-    ];
-
-    return order.indexOf(first) - order.indexOf(second);
-  });
-
-  orderedCategories.forEach((category) => {
-    groupedSkills[category].sort((first, second) => {
-      const firstOrder = Number(first.order) || 0;
-      const secondOrder = Number(second.order) || 0;
-
-      return firstOrder - secondOrder;
-    });
-  });
+  }, []);
 
   return (
-    <section id={id} className="scroll-mt-20 py-16 sm:py-20 lg:py-24">
+    <section
+      id={id}
+      aria-labelledby={`${id}-heading`}
+      className="scroll-mt-20 border-t py-20 sm:py-24 lg:py-28"
+    >
       <div className="container-page">
+        {/* Section heading */}
         <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.45 }}
-          className="max-w-2xl"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 20 }}
+          whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-end"
         >
-          <div className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-            <Sparkles className="size-3.5 text-primary" />
-            Technical Skills
+          <div>
+            <div className="inline-flex items-center gap-2 border-b border-primary pb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+              <Layers3 aria-hidden="true" className="size-3.5" />
+              Skills
+            </div>
+
+            <h2
+              id={`${id}-heading`}
+              className="mt-5 max-w-xl text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl"
+            >
+              Tools I use to{" "}
+              <span className="text-muted-foreground">build.</span>
+            </h2>
           </div>
 
-          <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl">
-            Tools I use to turn ideas into software.
-          </h2>
-
-          <p className="mt-4 text-base leading-7 text-muted-foreground">
-            A practical collection of technologies and tools I use to design,
-            build, test, and maintain digital products.
+          <p className="max-w-xl text-base leading-7 text-muted-foreground lg:justify-self-end lg:text-lg">
+            A practical overview of the technologies and tools I work with
+            across the development lifecycle.
           </p>
         </motion.div>
 
+        {/* Loading */}
         {isLoading && (
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map((item) => (
+          <div
+            aria-label="Loading skills"
+            aria-busy="true"
+            className="mt-12 grid gap-5 md:grid-cols-2"
+          >
+            {[1, 2, 3, 4].map((item) => (
               <div
                 key={item}
-                className="animate-pulse rounded-2xl border bg-card p-6"
+                className="animate-pulse rounded-2xl border bg-card p-5 sm:p-6"
               >
-                <div className="h-5 w-28 rounded bg-muted" />
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-xl bg-muted" />
 
-                <div className="mt-3 h-4 w-48 rounded bg-muted" />
+                  <div>
+                    <div className="h-4 w-24 rounded bg-muted" />
+                    <div className="mt-2 h-3 w-40 rounded bg-muted" />
+                  </div>
+                </div>
 
                 <div className="mt-7 space-y-5">
-                  {[1, 2, 3].map((line) => (
-                    <div key={line}>
-                      <div className="h-4 w-32 rounded bg-muted" />
+                  {[1, 2, 3].map((skill) => (
+                    <div key={skill}>
+                      <div className="flex justify-between">
+                        <div className="h-4 w-24 rounded bg-muted" />
+                        <div className="h-4 w-8 rounded bg-muted" />
+                      </div>
+
                       <div className="mt-2 h-1.5 rounded-full bg-muted" />
                     </div>
                   ))}
@@ -210,10 +155,14 @@ const SkillsSection = ({ id = "skills" }) => {
           </div>
         )}
 
+        {/* Error */}
         {isError && (
-          <div className="mt-10 rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center">
+          <div
+            role="alert"
+            className="mt-12 rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center sm:p-10"
+          >
             <div className="mx-auto flex size-12 items-center justify-center rounded-full border bg-background">
-              <Sparkles className="size-5 text-destructive" />
+              <Layers3 aria-hidden="true" className="size-5 text-destructive" />
             </div>
 
             <h3 className="mt-4 text-lg font-semibold">
@@ -221,24 +170,28 @@ const SkillsSection = ({ id = "skills" }) => {
             </h3>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              We couldn't retrieve the skills right now. Please try again.
+              Skill information is temporarily unavailable. Please try again.
             </p>
 
             <button
               type="button"
               onClick={() => refetch()}
-              className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <RefreshCw className="size-4" />
+              <RefreshCw aria-hidden="true" className="size-4" />
               Try again
             </button>
           </div>
         )}
 
-        {!isLoading && !isError && skills.length === 0 && (
-          <div className="mt-10 rounded-2xl border bg-card p-10 text-center">
+        {/* Empty */}
+        {!isLoading && !isError && groupedSkills.length === 0 && (
+          <div className="mt-12 rounded-2xl border bg-card p-8 text-center sm:p-10">
             <div className="mx-auto flex size-12 items-center justify-center rounded-full border bg-muted">
-              <Sparkles className="size-5 text-muted-foreground" />
+              <Layers3
+                aria-hidden="true"
+                className="size-5 text-muted-foreground"
+              />
             </div>
 
             <h3 className="mt-4 text-lg font-semibold">Skills coming soon</h3>
@@ -250,85 +203,121 @@ const SkillsSection = ({ id = "skills" }) => {
           </div>
         )}
 
-        {!isLoading && !isError && skills.length > 0 && (
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {orderedCategories.map((category, categoryIndex) => {
-              const config = categoryConfig[category] || categoryConfig.other;
+        {/* Skills */}
+        {!isLoading && !isError && groupedSkills.length > 0 && (
+          <div className="mt-12 grid gap-5 md:grid-cols-2">
+            {groupedSkills.map(
+              ({ category, skills: categorySkills }, index) => {
+                const config = categoryConfig[category];
 
-              return (
-                <motion.article
-                  key={category}
-                  initial={{ opacity: 0, y: 18 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{
-                    once: true,
-                    amount: 0.15,
-                  }}
-                  transition={{
-                    duration: 0.4,
-                    delay: categoryIndex * 0.06,
-                  }}
-                  className="rounded-2xl border bg-card p-5 sm:p-6"
-                >
-                  <h3 className="text-lg font-semibold tracking-tight">
-                    {config.title}
-                  </h3>
+                if (!config) {
+                  return null;
+                }
 
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {config.description}
-                  </p>
+                const Icon = config.icon;
 
-                  <div className="mt-6 space-y-5">
-                    {groupedSkills[category].map((skill) => {
-                      const levelValue = getLevelValue(skill.level);
-                      const levelLabel = getLevelLabel(skill.level);
+                return (
+                  <motion.article
+                    key={category}
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 20 }}
+                    whileInView={
+                      shouldReduceMotion ? undefined : { opacity: 1, y: 0 }
+                    }
+                    viewport={{ once: true, amount: 0.2 }}
+                    transition={{
+                      duration: 0.5,
+                      delay: shouldReduceMotion ? 0 : index * 0.07,
+                      ease: "easeOut",
+                    }}
+                    className="group relative overflow-hidden rounded-2xl border bg-card p-5 transition-colors duration-300 hover:border-primary/30 sm:p-6"
+                  >
+                    {/* Category header */}
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-muted/40 transition-colors duration-300 group-hover:border-primary/20 group-hover:bg-primary/5">
+                        <Icon
+                          aria-hidden="true"
+                          className="size-4.5 text-primary"
+                        />
+                      </div>
 
-                      return (
-                        <div key={skill._id || skill.id || skill.name}>
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm font-medium">
-                              {skill.name}
-                            </span>
+                      <div>
+                        <h3 className="font-semibold tracking-tight">
+                          {config.label}
+                        </h3>
 
-                            {levelLabel && (
-                              <span className="text-xs text-muted-foreground">
-                                {levelLabel}
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          {config.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Skills */}
+                    <div className="mt-7 space-y-5">
+                      {categorySkills.map((skill) => {
+                        const proficiency = Math.min(
+                          100,
+                          Math.max(0, Number(skill.proficiency) || 0),
+                        );
+
+                        return (
+                          <div key={skill._id}>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-sm font-medium">
+                                {skill.name}
                               </span>
-                            )}
-                          </div>
 
-                          {levelValue !== null && (
+                              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                {proficiency}%
+                              </span>
+                            </div>
+
                             <div
                               className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
                               role="progressbar"
                               aria-label={`${skill.name} proficiency`}
                               aria-valuemin={0}
                               aria-valuemax={100}
-                              aria-valuenow={levelValue}
+                              aria-valuenow={proficiency}
                             >
                               <motion.div
-                                initial={{ width: 0 }}
+                                initial={
+                                  shouldReduceMotion
+                                    ? { width: `${proficiency}%` }
+                                    : { width: 0 }
+                                }
                                 whileInView={{
-                                  width: `${levelValue}%`,
+                                  width: `${proficiency}%`,
                                 }}
                                 viewport={{
                                   once: true,
+                                  amount: 0.5,
                                 }}
                                 transition={{
-                                  duration: 0.7,
-                                  delay: categoryIndex * 0.06,
+                                  duration: shouldReduceMotion ? 0 : 0.8,
+                                  delay: shouldReduceMotion ? 0 : 0.15,
+                                  ease: "easeOut",
                                 }}
                                 className="h-full rounded-full bg-primary"
                               />
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </motion.article>
-              );
-            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Bottom detail */}
+                    <div
+                      aria-hidden="true"
+                      className="mt-7 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/50"
+                    >
+                      <span className="h-px w-6 bg-border transition-all duration-300 group-hover:w-10 group-hover:bg-primary/40" />
+                      {categorySkills.length}{" "}
+                      {categorySkills.length === 1 ? "skill" : "skills"}
+                    </div>
+                  </motion.article>
+                );
+              },
+            )}
           </div>
         )}
       </div>

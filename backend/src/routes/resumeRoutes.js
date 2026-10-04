@@ -40,7 +40,7 @@ router.get("/", asyncHandler(getResumeController));
  */
 router.post(
   "/",
-
+authMiddleware,
   uploadRateLimiter,
   resumeUploadMiddleware.single("resume"),
   asyncHandler(uploadResumeController)

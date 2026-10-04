@@ -6,6 +6,8 @@ import { Link, useParams } from "react-router-dom";
 import { getProjectBySlug } from "@/api/projectApi";
 import ProjectDetailsContent from "@/components/projects/ProjectDetailsContent";
 
+import getApiErrorMessage from "@/utils/apiErrorhandler";
+
 const ProjectDetails = () => {
   const { slug } = useParams();
 
@@ -15,30 +17,33 @@ const ProjectDetails = () => {
     enabled: Boolean(slug),
   });
 
-  const { data, isLoading, isError, error } = projectQuery;
-
-  const project = data?.project || data?.data || data || null;
-
-  if (isLoading) {
+  if (projectQuery.isLoading) {
     return <ProjectDetailsSkeleton />;
   }
 
-  if (isError || !project) {
-    console.error("Failed to load project:", error);
+  if (projectQuery.isError) {
+    return (
+      <ProjectNotFound
+        description={getApiErrorMessage(
+          projectQuery.error,
+          "The project could not be loaded.",
+        )}
+      />
+    );
+  }
 
+  const project = projectQuery.data?.project;
+
+  if (!project) {
     return <ProjectNotFound />;
   }
 
   return <ProjectDetailsContent project={project} />;
 };
 
-/* -------------------------------------------------------------------------- */
-/* Loading skeleton                                                           */
-/* -------------------------------------------------------------------------- */
-
 const ProjectDetailsSkeleton = () => {
   return (
-    <div>
+    <div aria-busy="true" aria-label="Loading project">
       <section className="border-b py-16 sm:py-20 lg:py-24">
         <div className="container-page">
           <div className="h-4 w-32 animate-pulse rounded bg-muted" />
@@ -53,7 +58,6 @@ const ProjectDetailsSkeleton = () => {
 
           <div className="mt-8 flex gap-3">
             <div className="h-11 w-28 animate-pulse rounded bg-muted" />
-
             <div className="h-11 w-32 animate-pulse rounded bg-muted" />
           </div>
         </div>
@@ -70,11 +74,8 @@ const ProjectDetailsSkeleton = () => {
           <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_300px]">
             <div className="space-y-5">
               <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-
               <div className="h-5 w-full animate-pulse rounded bg-muted" />
-
               <div className="h-5 w-11/12 animate-pulse rounded bg-muted" />
-
               <div className="h-5 w-4/5 animate-pulse rounded bg-muted" />
             </div>
 
@@ -86,26 +87,21 @@ const ProjectDetailsSkeleton = () => {
   );
 };
 
-/* -------------------------------------------------------------------------- */
-/* Not found                                                                  */
-/* -------------------------------------------------------------------------- */
-
-const ProjectNotFound = () => {
+const ProjectNotFound = ({
+  description = "The project you're looking for doesn't exist or may no longer be available.",
+}) => {
   return (
     <section className="flex min-h-[60vh] items-center py-20">
       <div className="container-page">
         <motion.div
-          initial={{
-            opacity: 0,
-            y: 20,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           className="mx-auto max-w-lg text-center"
         >
-          <div className="mx-auto flex size-14 items-center justify-center rounded-xl bg-muted">
+          <div
+            className="mx-auto flex size-14 items-center justify-center rounded-xl bg-muted"
+            aria-hidden="true"
+          >
             <FolderKanban className="size-6 text-muted-foreground" />
           </div>
 
@@ -114,15 +110,14 @@ const ProjectNotFound = () => {
           </h1>
 
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            The project you're looking for doesn't exist or may no longer be
-            published.
+            {description}
           </p>
 
           <Link
             to="/projects"
             className="mt-7 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            <ArrowLeft className="size-4" />
+            <ArrowLeft className="size-4" aria-hidden="true" />
             Back to projects
           </Link>
         </motion.div>

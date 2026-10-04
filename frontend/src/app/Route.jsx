@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from "react-router-dom";
 
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import PublicOnlyRoute from "@/components/auth/PublicOnlyRoute";
+import CreateAdmin from "@/components/auth/CreateAdmin";
 
 import AdminLayout from "@/layouts/AdminLayout";
 import AuthLayout from "@/layouts/AuthLayout";
@@ -30,7 +31,7 @@ import AdminSkill from "@/pages/admin/Skill";
 import AdminMessages from "@/pages/admin/Messages";
 import AdminResume from "@/pages/admin/Resume";
 import AdminSettings from "@/pages/admin/Settings";
-import CreateAdmin from "@/components/auth/CreateAdmin";
+
 const router = createBrowserRouter([
   {
     element: <PublicLayout />,
@@ -63,7 +64,6 @@ const router = createBrowserRouter([
         path: "/background",
         element: <Background />,
       },
-
       {
         path: "/resume",
         element: <Resume />,
@@ -96,7 +96,10 @@ const router = createBrowserRouter([
       {
         element: <AdminLayout />,
         children: [
-          { path: "/admin", element: <Navigate to="/dashboard" replace /> },
+          {
+            path: "/admin",
+            element: <Navigate to="/admin/dashboard" replace />,
+          },
           {
             path: "/admin/dashboard",
             element: <Dashboard />,
@@ -142,10 +145,13 @@ const router = createBrowserRouter([
             element: <AdminMessages />,
           },
           {
-            path: "admin/resume",
+            path: "/admin/resume",
             element: <AdminResume />,
           },
-          { path: "/admin/settings", element: <AdminSettings /> },
+          {
+            path: "/admin/settings",
+            element: <AdminSettings />,
+          },
         ],
       },
     ],

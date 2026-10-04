@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 const AdminPageHeader = ({
   title,
   description,
+  action,
   actionLabel,
   actionHref,
   actionIcon: ActionIcon,
@@ -21,14 +22,20 @@ const AdminPageHeader = ({
         )}
       </div>
 
-      {actionLabel && actionHref && (
-        <Link
-          to={actionHref}
-          className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {ActionIcon && <ActionIcon className="size-4" />}
-          {actionLabel}
-        </Link>
+      {action ? (
+        <div className="shrink-0">{action}</div>
+      ) : (
+        actionLabel &&
+        actionHref && (
+          <Link
+            to={actionHref}
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {ActionIcon && <ActionIcon className="size-4" aria-hidden="true" />}
+
+            {actionLabel}
+          </Link>
+        )
       )}
     </div>
   );

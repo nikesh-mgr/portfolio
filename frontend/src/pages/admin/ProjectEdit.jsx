@@ -5,10 +5,49 @@ import { toast } from "sonner";
 
 import { getProjectById, updateProject } from "@/api/projectApi";
 
+import AdminErrorState from "@/components/admin/AdminErrorState";
+import AdminLoadingState from "@/components/admin/AdminLoadingState";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import ProjectGallery from "@/components/admin/projects/ProjectGallery";
 import ProjectForm from "@/components/admin/projects/ProjectForm";
 import { Button } from "@/components/ui/button";
+
+import getApiErrorMessage from "@/utils/apiErrorhandler";
+
+const buildProjectFormData = (values) => {
+  const payload = new FormData();
+
+  payload.append("title", values.title.trim());
+  payload.append("shortDescription", values.shortDescription.trim());
+  payload.append("description", values.description.trim());
+  payload.append("category", values.category.trim());
+
+  values.technologies.forEach((technology) => {
+    const cleanedTechnology = technology.trim();
+
+    if (cleanedTechnology) {
+      payload.append("technologies", cleanedTechnology);
+    }
+  });
+
+  if (values.githubUrl?.trim()) {
+    payload.append("githubUrl", values.githubUrl.trim());
+  }
+
+  if (values.liveUrl?.trim()) {
+    payload.append("liveUrl", values.liveUrl.trim());
+  }
+
+  payload.append("featured", String(values.featured));
+  payload.append("status", values.status);
+  payload.append("order", String(values.order));
+
+  if (values.image instanceof File) {
+    payload.append("image", values.image);
+  }
+
+  return payload;
+};
 
 const ProjectEdit = () => {
   const { id } = useParams();
@@ -25,13 +64,20 @@ const ProjectEdit = () => {
     mutationFn: updateProject,
 
     onSuccess: async (response) => {
-      await queryClient.invalidateQueries({
-        queryKey: ["project", id],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["projects"],
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["project", id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["projects"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["projects", "featured"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["project", "slug"],
+        }),
+      ]);
 
       toast.success(response?.message || "Project updated successfully.");
 
@@ -40,167 +86,97 @@ const ProjectEdit = () => {
 
     onError: (error) => {
       toast.error(
-        error?.response?.data?.message || "Failed to update project.",
+        getApiErrorMessage(
+          error,
+          "The project could not be updated. Please review the form and try again.",
+        ),
       );
     },
   });
 
   const handleGalleryUpdated = async () => {
-    await projectQuery.refetch();
-
-    await queryClient.invalidateQueries({
-      queryKey: ["projects"],
-    });
+    await Promise.all([
+      projectQuery.refetch(),
+      queryClient.invalidateQueries({
+        queryKey: ["projects"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["projects", "featured"],
+      }),
+    ]);
   };
 
   const handleSubmit = (values) => {
     if (!id) {
-      toast.error("Project ID is missing.");
+      toast.error(
+        "The project ID is missing. Please return to the project list and try again.",
+      );
       return;
-    }
-
-    const payload = new FormData();
-
-    /*
-     * Basic project information.
-     */
-    payload.append("title", values.title.trim());
-    payload.append("shortDescription", values.shortDescription.trim());
-    payload.append("description", values.description.trim());
-    payload.append("category", values.category.trim());
-
-    /*
-     * Technologies.
-     *
-     * FormData sends each technology as a separate field:
-     *
-     * technologies=React
-     * technologies=Node.js
-     * technologies=MongoDB
-     */
-    values.technologies.forEach((technology) => {
-      const cleanedTechnology = technology.trim();
-
-      if (cleanedTechnology) {
-        payload.append("technologies", cleanedTechnology);
-      }
-    });
-
-    /*
-     * Optional GitHub URL.
-     */
-    if (values.githubUrl?.trim()) {
-      payload.append("githubUrl", values.githubUrl.trim());
-    }
-
-    /*
-     * Optional live project URL.
-     */
-    if (values.liveUrl?.trim()) {
-      payload.append("liveUrl", values.liveUrl.trim());
-    }
-
-    /*
-     * Featured status.
-     *
-     * All projects are published by default, so there is
-     * intentionally NO `published` field here.
-     */
-    payload.append("featured", String(values.featured));
-
-    /*
-     * Project development status.
-     */
-    payload.append("status", values.status);
-
-    /*
-     * Display order.
-     */
-    payload.append("order", String(values.order));
-
-    /*
-     * Primary image.
-     *
-     * Only upload a file when the user selected a new image.
-     * Otherwise, the backend keeps the existing image.
-     */
-    if (values.image instanceof File) {
-      payload.append("image", values.image);
     }
 
     updateMutation.mutate({
       id,
-      data: payload,
+      data: buildProjectFormData(values),
     });
   };
 
-  /*
-   * Loading state.
-   */
+  const pageHeader = (
+    <AdminPageHeader
+      title="Edit project"
+      description="Update project information and media."
+      action={
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => navigate("/admin/projects")}
+          disabled={updateMutation.isPending}
+        >
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          Back to projects
+        </Button>
+      }
+    />
+  );
+
   if (projectQuery.isLoading) {
     return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading project...</p>
+      <div className="space-y-6">
+        {pageHeader}
+        <AdminLoadingState message="Loading project..." />
       </div>
     );
   }
 
-  /*
-   * Error state.
-   */
   if (projectQuery.isError) {
     return (
       <div className="space-y-6">
-        <AdminPageHeader
-          title="Edit project"
-          description="Unable to load this project."
+        {pageHeader}
+
+        <AdminErrorState
+          title="Unable to load project"
+          description={getApiErrorMessage(
+            projectQuery.error,
+            "Something went wrong while loading this project.",
+          )}
+          onRetry={() => projectQuery.refetch()}
         />
-
-        <div className="rounded-xl border bg-card p-8 text-center">
-          <p className="text-sm font-medium text-destructive">
-            Unable to load project
-          </p>
-
-          <p className="mt-2 text-sm text-muted-foreground">
-            {projectQuery.error?.response?.data?.message ||
-              "Failed to load project."}
-          </p>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-5"
-            onClick={() => navigate("/admin/projects")}
-          >
-            <ArrowLeft className="size-4" />
-            Back to projects
-          </Button>
-        </div>
       </div>
     );
   }
 
-  /*
-   * Support both response shapes:
-   *
-   * { project: {...} }
-   *
-   * and
-   *
-   * {...project}
-   */
-  const project = projectQuery.data?.project || projectQuery.data;
+  const project = projectQuery.data?.project;
 
   if (!project) {
     return (
       <div className="space-y-6">
-        <AdminPageHeader
-          title="Edit project"
-          description="Project could not be found."
-        />
+        {pageHeader}
 
         <div className="rounded-xl border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">Project not found.</p>
+          <p className="text-sm font-medium">Project not found.</p>
+
+          <p className="mt-2 text-sm text-muted-foreground">
+            The project may have been deleted or is no longer available.
+          </p>
 
           <Button
             type="button"
@@ -208,7 +184,7 @@ const ProjectEdit = () => {
             className="mt-5"
             onClick={() => navigate("/admin/projects")}
           >
-            <ArrowLeft className="size-4" />
+            <ArrowLeft className="size-4" aria-hidden="true" />
             Back to projects
           </Button>
         </div>
@@ -218,20 +194,7 @@ const ProjectEdit = () => {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader
-        title="Edit project"
-        description={`Update ${project.title || "project"} information.`}
-        action={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate("/admin/projects")}
-          >
-            <ArrowLeft className="size-4" />
-            Back to projects
-          </Button>
-        }
-      />
+      {pageHeader}
 
       <ProjectForm
         initialValues={project}

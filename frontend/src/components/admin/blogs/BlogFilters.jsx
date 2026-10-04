@@ -9,6 +9,9 @@ const DEFAULT_FILTERS = {
   category: "all",
 };
 
+const selectClassName =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
 const BlogFilters = ({
   filters = DEFAULT_FILTERS,
   categories = [],
@@ -33,16 +36,37 @@ const BlogFilters = ({
     currentFilters.category !== "all";
 
   return (
-    <div className="rounded-xl border bg-card p-4">
-      <div className="flex flex-col gap-4">
+    <section
+      aria-labelledby="blog-filters-title"
+      className="rounded-xl border bg-card p-4 shadow-sm sm:p-5"
+    >
+      <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="size-4 shrink-0 text-muted-foreground" />
+        <div className="flex items-start gap-3">
+          <div
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/50"
+            aria-hidden="true"
+          >
+            <SlidersHorizontal className="size-4 text-muted-foreground" />
+          </div>
 
-          <div>
-            <h2 className="text-sm font-medium">Filters</h2>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h2
+                id="blog-filters-title"
+                className="text-sm font-semibold tracking-tight"
+              >
+                Filters
+              </h2>
 
-            <p className="text-xs text-muted-foreground">
+              {hasActiveFilters && (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  Active
+                </span>
+              )}
+            </div>
+
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Search and filter your blog posts.
             </p>
           </div>
@@ -52,32 +76,45 @@ const BlogFilters = ({
               type="button"
               variant="ghost"
               size="sm"
-              className="ml-auto gap-1.5"
+              className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
               onClick={onClear}
             >
-              <X className="size-3.5" />
-              Clear
+              <X className="size-3.5" aria-hidden="true" />
+              <span>Clear</span>
             </Button>
           )}
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="space-y-1.5">
+          <label
+            htmlFor="blog-search-filter"
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Search
+          </label>
 
-          <Input
-            type="search"
-            value={currentFilters.search || ""}
-            onChange={(event) => updateFilter("search", event.target.value)}
-            placeholder="Search blogs..."
-            className="pl-9"
-            aria-label="Search blogs"
-          />
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+
+            <Input
+              id="blog-search-filter"
+              type="search"
+              value={currentFilters.search}
+              onChange={(event) => updateFilter("search", event.target.value)}
+              placeholder="Search by title, content, category, or tags..."
+              className="pl-9"
+              aria-label="Search blog posts"
+            />
+          </div>
         </div>
 
-        {/* Filters */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          {/* Published */}
+        {/* Filter Controls */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Visibility */}
           <div className="space-y-1.5">
             <label
               htmlFor="blog-published-filter"
@@ -92,7 +129,7 @@ const BlogFilters = ({
               onChange={(event) =>
                 updateFilter("published", event.target.value)
               }
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={selectClassName}
             >
               <option value="all">All visibility</option>
               <option value="published">Published</option>
@@ -113,7 +150,7 @@ const BlogFilters = ({
               id="blog-category-filter"
               value={currentFilters.category}
               onChange={(event) => updateFilter("category", event.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={selectClassName}
             >
               <option value="all">All categories</option>
 
@@ -126,7 +163,7 @@ const BlogFilters = ({
           </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 

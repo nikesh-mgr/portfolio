@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Trash2, Upload } from "lucide-react";
+import { ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const ProjectImageUpload = ({ value, onChange, disabled = false }) => {
   const inputRef = useRef(null);
@@ -36,12 +41,19 @@ const ProjectImageUpload = ({ value, onChange, disabled = false }) => {
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
 
+    event.target.value = "";
+
     if (!file) {
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
-      event.target.value = "";
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Only JPEG, PNG, and WebP images are allowed.");
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      toast.error("Project image must be 5 MB or smaller.");
       return;
     }
 
@@ -49,7 +61,9 @@ const ProjectImageUpload = ({ value, onChange, disabled = false }) => {
   };
 
   const handleSelect = () => {
-    inputRef.current?.click();
+    if (!disabled) {
+      inputRef.current?.click();
+    }
   };
 
   const handleRemove = () => {
@@ -65,10 +79,11 @@ const ProjectImageUpload = ({ value, onChange, disabled = false }) => {
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/avif"
+        accept="image/jpeg,image/png,image/webp"
         onChange={handleFileChange}
         disabled={disabled}
         className="hidden"
+        aria-label="Upload project image"
       />
 
       {preview ? (
@@ -89,7 +104,7 @@ const ProjectImageUpload = ({ value, onChange, disabled = false }) => {
                 disabled={disabled}
                 aria-label="Remove project image"
               >
-                <Trash2 className="size-4" />
+                <Trash2 className="size-4" aria-hidden="true" />
               </Button>
             </div>
           </div>
@@ -110,7 +125,7 @@ const ProjectImageUpload = ({ value, onChange, disabled = false }) => {
               onClick={handleSelect}
               disabled={disabled}
             >
-              <Upload className="size-4" />
+              <Upload className="size-4" aria-hidden="true" />
               Replace
             </Button>
           </div>
@@ -123,19 +138,22 @@ const ProjectImageUpload = ({ value, onChange, disabled = false }) => {
           className="flex aspect-video w-full flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 px-6 text-center transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
         >
           <span className="mb-3 flex size-11 items-center justify-center rounded-full border bg-background">
-            <ImagePlus className="size-5 text-muted-foreground" />
+            <ImagePlus
+              className="size-5 text-muted-foreground"
+              aria-hidden="true"
+            />
           </span>
 
           <span className="text-sm font-medium">Upload project image</span>
 
           <span className="mt-1 text-xs text-muted-foreground">
-            PNG, JPG, WebP or AVIF
+            JPEG, PNG, or WebP
           </span>
         </button>
       )}
 
       <p className="text-xs text-muted-foreground">
-        A landscape image works best for project cards and project details.
+        JPEG, PNG, or WebP · Maximum 5 MB · Landscape images work best.
       </p>
     </div>
   );

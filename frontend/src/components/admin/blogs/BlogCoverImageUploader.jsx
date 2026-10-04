@@ -4,24 +4,9 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
-/*
-|--------------------------------------------------------------------------
-| File Upload Configuration
-|--------------------------------------------------------------------------
-|
-| Keep these restrictions aligned with the backend uploadMiddleware.
-|--------------------------------------------------------------------------
-*/
-
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp"];
-
-/*
-|--------------------------------------------------------------------------
-| Component
-|--------------------------------------------------------------------------
-*/
 
 const BlogCoverImageUploader = ({
   value = null,
@@ -29,68 +14,43 @@ const BlogCoverImageUploader = ({
   disabled = false,
 }) => {
   const inputRef = useRef(null);
+  const objectUrlRef = useRef(null);
 
   const [preview, setPreview] = useState(null);
   const [isPreparing, setIsPreparing] = useState(false);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Set Existing Image
-  |--------------------------------------------------------------------------
-  |
-  | The component can receive:
-  |
-  | 1. Backend image object:
-  |    { url, publicId }
-  |
-  | 2. Plain URL
-  |
-  | 3. Newly selected image state:
-  |    { file, preview, existingUrl, remove }
-  |--------------------------------------------------------------------------
-  */
-
   useEffect(() => {
     let imageUrl = null;
 
-    if (value && typeof value === "object") {
-      if (value.preview) {
-        imageUrl = value.preview;
-      } else if (value.url) {
-        imageUrl = value.url;
-      }
-    }
-
     if (typeof value === "string" && value) {
       imageUrl = value;
+    } else if (value && typeof value === "object") {
+      imageUrl = value.preview || value.url || null;
     }
 
     setPreview(imageUrl);
-  }, [value]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Cleanup Blob URL
-  |--------------------------------------------------------------------------
-  |
-  | Object URLs created with URL.createObjectURL() must be revoked
-  | when they are no longer needed to prevent browser memory leaks.
-  |--------------------------------------------------------------------------
-  */
+    return () => {
+      if (objectUrlRef.current && objectUrlRef.current !== imageUrl) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, [value]);
 
   useEffect(() => {
     return () => {
-      if (preview?.startsWith("blob:")) {
-        URL.revokeObjectURL(preview);
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
       }
     };
-  }, [preview]);
+  }, []);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Select Image
-  |--------------------------------------------------------------------------
-  */
+  const resetInput = () => {
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  };
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
@@ -99,79 +59,28 @@ const BlogCoverImageUploader = ({
       return;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Validate MIME type
-    |--------------------------------------------------------------------------
-    |
-    | Do not use file.type.startsWith("image/").
-    |
-    | The backend accepts only:
-    | - image/jpeg
-    | - image/png
-    | - image/webp
-    |--------------------------------------------------------------------------
-    */
-
     if (!ALLOWED_FILE_TYPES.includes(file.type)) {
       toast.error("Only JPG, PNG, and WEBP images are allowed.");
-
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-
+      resetInput();
       return;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Validate File Size
-    |--------------------------------------------------------------------------
-    */
-
     if (file.size > MAX_FILE_SIZE) {
       toast.error("Image size must not exceed 5 MB.");
-
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-
+      resetInput();
       return;
     }
 
     setIsPreparing(true);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Revoke Previous Blob Preview
-    |--------------------------------------------------------------------------
-    */
-
-    if (preview?.startsWith("blob:")) {
-      URL.revokeObjectURL(preview);
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Create Temporary Preview
-    |--------------------------------------------------------------------------
-    */
 
     const objectUrl = URL.createObjectURL(file);
 
+    objectUrlRef.current = objectUrl;
     setPreview(objectUrl);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Notify Parent
-    |--------------------------------------------------------------------------
-    |
-    | existingUrl is null because the selected file is a new image.
-    |
-    | remove must also be false because selecting a new image replaces
-    | the previous image.
-    |--------------------------------------------------------------------------
-    */
 
     onChange?.({
       file,
@@ -181,46 +90,16 @@ const BlogCoverImageUploader = ({
     });
 
     setIsPreparing(false);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Reset Input
-    |--------------------------------------------------------------------------
-    |
-    | This allows the user to select the same file again later.
-    |--------------------------------------------------------------------------
-    */
-
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
+    resetInput();
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Remove Image
-  |--------------------------------------------------------------------------
-  */
-
   const handleRemove = () => {
-    if (preview?.startsWith("blob:")) {
-      URL.revokeObjectURL(preview);
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
     }
 
     setPreview(null);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Tell the parent that the current image should be removed.
-    |--------------------------------------------------------------------------
-    |
-    | BlogEdit uses:
-    |
-    | remove === true && !file
-    |
-    | to call the backend delete-cover-image endpoint.
-    |--------------------------------------------------------------------------
-    */
 
     onChange?.({
       file: null,
@@ -229,16 +108,8 @@ const BlogCoverImageUploader = ({
       remove: true,
     });
 
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
+    resetInput();
   };
-
-  /*
-  |--------------------------------------------------------------------------
-  | Choose Image
-  |--------------------------------------------------------------------------
-  */
 
   const handleChoose = () => {
     if (disabled || isPreparing) {
@@ -248,14 +119,8 @@ const BlogCoverImageUploader = ({
     inputRef.current?.click();
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Render
-  |--------------------------------------------------------------------------
-  */
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" aria-busy={isPreparing}>
       <input
         ref={inputRef}
         type="file"
@@ -263,6 +128,7 @@ const BlogCoverImageUploader = ({
         className="hidden"
         onChange={handleFileChange}
         disabled={disabled || isPreparing}
+        aria-label="Upload blog cover image"
       />
 
       {preview ? (
@@ -270,10 +136,11 @@ const BlogCoverImageUploader = ({
           <img
             src={preview}
             alt="Blog cover preview"
+            decoding="async"
             className="aspect-video w-full object-cover"
           />
 
-          <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-black/60 p-3">
+          <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-between gap-2 bg-black/60 p-3">
             <Button
               type="button"
               variant="secondary"
@@ -282,12 +149,15 @@ const BlogCoverImageUploader = ({
             >
               {isPreparing ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2
+                    className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none"
+                    aria-hidden="true"
+                  />
                   Preparing...
                 </>
               ) : (
                 <>
-                  <Upload className="mr-2 h-4 w-4" />
+                  <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
                   Change Image
                 </>
               )}
@@ -299,7 +169,7 @@ const BlogCoverImageUploader = ({
               onClick={handleRemove}
               disabled={disabled || isPreparing}
             >
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
               Remove
             </Button>
           </div>
@@ -309,12 +179,16 @@ const BlogCoverImageUploader = ({
           type="button"
           onClick={handleChoose}
           disabled={disabled || isPreparing}
-          className="flex aspect-video w-full flex-col items-center justify-center rounded-xl border-2 border-dashed bg-muted/30 transition hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Upload blog cover image"
+          className="flex aspect-video w-full flex-col items-center justify-center rounded-xl border-2 border-dashed bg-muted/30 transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isPreparing ? (
-            <Loader2 className="mb-3 h-8 w-8 animate-spin" />
+            <Loader2
+              className="mb-3 h-8 w-8 animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
           ) : (
-            <ImagePlus className="mb-3 h-8 w-8" />
+            <ImagePlus className="mb-3 h-8 w-8" aria-hidden="true" />
           )}
 
           <span className="text-sm font-medium">

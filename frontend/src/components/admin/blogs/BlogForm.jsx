@@ -11,25 +11,13 @@ import { Input } from "@/components/ui/input";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-
-/*
-|--------------------------------------------------------------------------
-| Blog Form Schema
-|--------------------------------------------------------------------------
-|
-| This schema validates the admin form before the request reaches the API.
-|
-| IMPORTANT:
-| Slug is intentionally not part of the form anymore.
-| The backend generates the slug from the blog title.
-|--------------------------------------------------------------------------
-*/
 
 const blogFormSchema = z.object({
   title: z
@@ -80,12 +68,6 @@ const blogFormSchema = z.object({
     .max(2048, "Canonical URL cannot exceed 2048 characters"),
 });
 
-/*
-|--------------------------------------------------------------------------
-| Default Values
-|--------------------------------------------------------------------------
-*/
-
 const defaultValues = {
   title: "",
   excerpt: "",
@@ -100,24 +82,12 @@ const defaultValues = {
   canonicalUrl: "",
 };
 
-/*
-|--------------------------------------------------------------------------
-| Component
-|--------------------------------------------------------------------------
-*/
-
 const BlogForm = ({
   initialValues = defaultValues,
   onSubmit,
   isSubmitting = false,
   submitLabel = "Save Blog",
 }) => {
-  /*
-  |--------------------------------------------------------------------------
-  | Cover Image State
-  |--------------------------------------------------------------------------
-  */
-
   const [coverImage, setCoverImage] = useState({
     file: null,
     preview: null,
@@ -125,28 +95,14 @@ const BlogForm = ({
     remove: false,
   });
 
-  /*
-  |--------------------------------------------------------------------------
-  | React Hook Form
-  |--------------------------------------------------------------------------
-  */
-
   const form = useForm({
     resolver: zodResolver(blogFormSchema),
-
     defaultValues: {
       ...defaultValues,
       ...initialValues,
     },
-
     mode: "onSubmit",
   });
-
-  /*
-  |--------------------------------------------------------------------------
-  | Update Existing Cover Image
-  |--------------------------------------------------------------------------
-  */
 
   useEffect(() => {
     const existingCoverUrl = initialValues?.coverImage?.url || null;
@@ -157,23 +113,16 @@ const BlogForm = ({
       existingUrl: existingCoverUrl,
       remove: false,
     });
-  }, [initialValues]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Cover Image Change
-  |--------------------------------------------------------------------------
-  */
+    form.reset({
+      ...defaultValues,
+      ...initialValues,
+    });
+  }, [initialValues, form]);
 
   const handleCoverImageChange = (imageData) => {
     setCoverImage(imageData);
   };
-
-  /*
-  |--------------------------------------------------------------------------
-  | Valid Form Submission
-  |--------------------------------------------------------------------------
-  */
 
   const handleSubmit = (values) => {
     if (typeof onSubmit !== "function") {
@@ -183,12 +132,6 @@ const BlogForm = ({
     onSubmit(values, coverImage);
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Invalid Form Submission
-  |--------------------------------------------------------------------------
-  */
-
   const handleInvalid = (errors) => {
     const firstError = Object.keys(errors)[0];
 
@@ -197,26 +140,20 @@ const BlogForm = ({
     }
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Render
-  |--------------------------------------------------------------------------
-  */
-
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(handleSubmit, handleInvalid)}
         className="space-y-8"
         noValidate
+        aria-busy={isSubmitting}
       >
-        {/* ---------------------------------------------------------------- */}
-        {/* COVER IMAGE */}
-        {/* ---------------------------------------------------------------- */}
-
-        <div className="space-y-3">
+        {/* Cover image */}
+        <section aria-labelledby="blog-cover-heading" className="space-y-3">
           <div>
-            <h3 className="text-lg font-semibold">Cover Image</h3>
+            <h3 id="blog-cover-heading" className="text-lg font-semibold">
+              Cover Image
+            </h3>
 
             <p className="text-sm text-muted-foreground">
               Upload an image for the blog cover.
@@ -228,12 +165,9 @@ const BlogForm = ({
             disabled={isSubmitting}
             onChange={handleCoverImageChange}
           />
-        </div>
+        </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* TITLE */}
-        {/* ---------------------------------------------------------------- */}
-
+        {/* Title */}
         <FormField
           control={form.control}
           name="title"
@@ -244,6 +178,7 @@ const BlogForm = ({
               <FormControl>
                 <Input
                   placeholder="Enter blog title"
+                  autoComplete="off"
                   disabled={isSubmitting}
                   {...field}
                 />
@@ -254,10 +189,7 @@ const BlogForm = ({
           )}
         />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* EXCERPT */}
-        {/* ---------------------------------------------------------------- */}
-
+        {/* Excerpt */}
         <FormField
           control={form.control}
           name="excerpt"
@@ -274,15 +206,16 @@ const BlogForm = ({
                 />
               </FormControl>
 
+              <FormDescription>
+                A short summary shown in blog cards and previews.
+              </FormDescription>
+
               <FormMessage />
             </FormItem>
           )}
         />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* CONTENT */}
-        {/* ---------------------------------------------------------------- */}
-
+        {/* Content */}
         <FormField
           control={form.control}
           name="content"
@@ -295,19 +228,19 @@ const BlogForm = ({
                   placeholder="Write your blog content..."
                   rows={12}
                   disabled={isSubmitting}
+                  className="min-h-72 font-mono text-sm"
                   {...field}
                 />
               </FormControl>
+
+              <FormDescription>Markdown content is supported.</FormDescription>
 
               <FormMessage />
             </FormItem>
           )}
         />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* CATEGORY */}
-        {/* ---------------------------------------------------------------- */}
-
+        {/* Category */}
         <FormField
           control={form.control}
           name="category"
@@ -328,10 +261,7 @@ const BlogForm = ({
           )}
         />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* TAGS */}
-        {/* ---------------------------------------------------------------- */}
-
+        {/* Tags */}
         <FormField
           control={form.control}
           name="tags"
@@ -347,19 +277,16 @@ const BlogForm = ({
                 />
               </FormControl>
 
-              <p className="text-xs text-muted-foreground">
+              <FormDescription>
                 Separate tags using commas. Maximum 20 tags.
-              </p>
+              </FormDescription>
 
               <FormMessage />
             </FormItem>
           )}
         />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* READING TIME */}
-        {/* ---------------------------------------------------------------- */}
-
+        {/* Reading time */}
         <FormField
           control={form.control}
           name="readingTime"
@@ -373,6 +300,7 @@ const BlogForm = ({
                   min="1"
                   max="120"
                   step="1"
+                  inputMode="numeric"
                   disabled={isSubmitting}
                   {...field}
                 />
@@ -383,46 +311,53 @@ const BlogForm = ({
           )}
         />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* PUBLISHED */}
-        {/* ---------------------------------------------------------------- */}
-
+        {/* Published */}
         <FormField
           control={form.control}
           name="published"
           render={({ field }) => (
-            <FormItem className="flex items-center gap-3">
+            <FormItem className="flex items-start gap-3 rounded-lg border p-4">
               <FormControl>
                 <Checkbox
                   checked={field.value}
                   disabled={isSubmitting}
                   onCheckedChange={field.onChange}
+                  aria-describedby="published-description"
                 />
               </FormControl>
 
-              <FormLabel className="cursor-pointer">
-                Publish this blog
-              </FormLabel>
+              <div className="space-y-1">
+                <FormLabel className="cursor-pointer">
+                  Publish this blog
+                </FormLabel>
 
-              <FormMessage />
+                <p
+                  id="published-description"
+                  className="text-xs text-muted-foreground"
+                >
+                  Published posts can appear on the public blog.
+                </p>
+
+                <FormMessage />
+              </div>
             </FormItem>
           )}
         />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* SEO SETTINGS */}
-        {/* ---------------------------------------------------------------- */}
-
-        <div className="space-y-6 rounded-xl border p-6">
+        {/* SEO */}
+        <section
+          aria-labelledby="blog-seo-heading"
+          className="space-y-6 rounded-xl border p-6"
+        >
           <div>
-            <h3 className="text-lg font-semibold">SEO Settings</h3>
+            <h3 id="blog-seo-heading" className="text-lg font-semibold">
+              SEO Settings
+            </h3>
 
             <p className="text-sm text-muted-foreground">
               Optional search engine optimization settings.
             </p>
           </div>
-
-          {/* META TITLE */}
 
           <FormField
             control={form.control}
@@ -439,12 +374,14 @@ const BlogForm = ({
                   />
                 </FormControl>
 
+                <FormDescription>
+                  Recommended maximum length: 70 characters.
+                </FormDescription>
+
                 <FormMessage />
               </FormItem>
             )}
           />
-
-          {/* META DESCRIPTION */}
 
           <FormField
             control={form.control}
@@ -462,12 +399,14 @@ const BlogForm = ({
                   />
                 </FormControl>
 
+                <FormDescription>
+                  Recommended maximum length: 160 characters.
+                </FormDescription>
+
                 <FormMessage />
               </FormItem>
             )}
           />
-
-          {/* KEYWORDS */}
 
           <FormField
             control={form.control}
@@ -484,16 +423,14 @@ const BlogForm = ({
                   />
                 </FormControl>
 
-                <p className="text-xs text-muted-foreground">
+                <FormDescription>
                   Separate keywords using commas. Maximum 30 keywords.
-                </p>
+                </FormDescription>
 
                 <FormMessage />
               </FormItem>
             )}
           />
-
-          {/* CANONICAL URL */}
 
           <FormField
             control={form.control}
@@ -505,6 +442,7 @@ const BlogForm = ({
                 <FormControl>
                   <Input
                     type="url"
+                    inputMode="url"
                     placeholder="https://example.com/blog/..."
                     disabled={isSubmitting}
                     {...field}
@@ -515,16 +453,14 @@ const BlogForm = ({
               </FormItem>
             )}
           />
-        </div>
+        </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* SUBMIT */}
-        {/* ---------------------------------------------------------------- */}
-
+        {/* Submit */}
         <div className="flex justify-end">
           <Button
             type="submit"
             disabled={isSubmitting}
+            aria-busy={isSubmitting}
             className="min-w-[120px]"
           >
             {isSubmitting ? "Saving..." : submitLabel}

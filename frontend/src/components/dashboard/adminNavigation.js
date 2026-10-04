@@ -2,7 +2,6 @@ import {
   Award,
   BriefcaseBusiness,
   FileText,
-  GraduationCap,
   LayoutDashboard,
   Mail,
   Settings,
@@ -36,7 +35,6 @@ export const adminNavigation = [
     href: "/admin/skills",
     icon: Sparkles,
   },
-
   {
     title: "Certificates",
     href: "/admin/certificates",

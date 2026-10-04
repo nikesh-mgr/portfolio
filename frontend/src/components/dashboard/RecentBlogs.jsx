@@ -4,8 +4,13 @@ import { Link } from "react-router-dom";
 const RecentBlogs = ({ blogs = [] }) => {
   if (blogs.length === 0) {
     return (
-      <div className="flex min-h-32 flex-col items-center justify-center text-center">
-        <FileText className="size-5 text-muted-foreground" />
+      <div className="flex min-h-32 flex-col items-center justify-center px-4 text-center">
+        <div
+          className="flex size-9 items-center justify-center rounded-lg bg-muted"
+          aria-hidden="true"
+        >
+          <FileText className="size-4 text-muted-foreground" />
+        </div>
 
         <p className="mt-3 text-sm font-medium">No articles yet</p>
 
@@ -24,7 +29,9 @@ const RecentBlogs = ({ blogs = [] }) => {
           className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
         >
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{blog.title}</p>
+            <p className="truncate text-sm font-medium">
+              {blog.title || "Untitled article"}
+            </p>
 
             <p className="mt-1 truncate text-xs text-muted-foreground">
               {blog.category || "Article"}
@@ -35,10 +42,11 @@ const RecentBlogs = ({ blogs = [] }) => {
             <Link
               to={`/blog/${blog.slug}`}
               target="_blank"
-              className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`View ${blog.title}`}
+              rel="noopener noreferrer"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              aria-label={`View ${blog.title || "article"}`}
             >
-              <ArrowUpRight className="size-4" />
+              <ArrowUpRight className="size-4" aria-hidden="true" />
             </Link>
           )}
         </div>

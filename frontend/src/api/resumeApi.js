@@ -7,6 +7,10 @@ export const getResume = async () => {
 };
 
 export const uploadResume = async ({ file, title = "Resume" }) => {
+  if (!(file instanceof File)) {
+    throw new Error("Resume file is required.");
+  }
+
   const formData = new FormData();
 
   formData.append("resume", file);
@@ -18,12 +22,20 @@ export const uploadResume = async ({ file, title = "Resume" }) => {
 };
 
 export const updateResume = async (id, resumeData) => {
+  if (!id) {
+    throw new Error("Resume ID is required.");
+  }
+
   const response = await api.patch(`/resume/${id}`, resumeData);
 
   return response.data;
 };
 
 export const deleteResume = async (id) => {
+  if (!id) {
+    throw new Error("Resume ID is required.");
+  }
+
   const response = await api.delete(`/resume/${id}`);
 
   return response.data;

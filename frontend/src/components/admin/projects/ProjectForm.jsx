@@ -25,18 +25,43 @@ import TechnologyInput from "./TechnologyInput";
 |--------------------------------------------------------------------------
 | URL validation
 |--------------------------------------------------------------------------
+|
+| Matches the backend:
+| - Maximum 2048 characters
+| - Valid URL required
+| - HTTP / HTTPS only
+|
 */
 
 const urlSchema = z
   .string()
   .trim()
+  .max(2048, "URL cannot exceed 2048 characters")
   .url("Please provide a valid URL")
   .refine(
-    (value) => value.startsWith("http://") || value.startsWith("https://"),
+    (value) => {
+      try {
+        const url = new URL(value);
+
+        return ["http:", "https:"].includes(url.protocol);
+      } catch {
+        return false;
+      }
+    },
     {
       message: "URL must use HTTP or HTTPS",
     },
   );
+
+/*
+|--------------------------------------------------------------------------
+| Optional URL
+|--------------------------------------------------------------------------
+|
+| The backend accepts optional URLs and normalizes empty values.
+| The frontend keeps "" for the input so the field remains controlled.
+|
+*/
 
 const optionalUrlSchema = z.union([urlSchema, z.literal("")]).optional();
 
@@ -45,57 +70,124 @@ const optionalUrlSchema = z.union([urlSchema, z.literal("")]).optional();
 | Project validation schema
 |--------------------------------------------------------------------------
 |
-| All projects are considered published.
-| There is no `published` field anymore.
+| These rules intentionally mirror the backend createProjectSchema.
 |
 */
 
 const projectSchema = z.object({
+  /*
+   * Title
+   */
   title: z
     .string()
     .trim()
     .min(2, "Project title must be at least 2 characters")
     .max(100, "Project title cannot exceed 100 characters"),
 
+  /*
+   * Backend minimum is 10 characters.
+   */
   shortDescription: z
     .string()
     .trim()
-    .min(1, "Short description is required")
+    .min(10, "Short description must be at least 10 characters")
     .max(250, "Short description cannot exceed 250 characters"),
 
+  /*
+   * Backend minimum is 20 characters.
+   */
   description: z
     .string()
     .trim()
-    .min(1, "Project description is required")
+    .min(20, "Project description must be at least 20 characters")
     .max(5000, "Project description cannot exceed 5000 characters"),
 
+  /*
+   * Backend:
+   * - minimum 1
+   * - maximum 30 technologies
+   * - each technology 1-50 characters
+   */
   technologies: z
-    .array(z.string().trim().min(1, "Technology cannot be empty"))
-    .min(1, "At least one technology is required"),
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1, "Technology cannot be empty")
+        .max(50, "Technology cannot exceed 50 characters"),
+    )
+    .min(1, "At least one technology is required")
+    .max(30, "A project cannot contain more than 30 technologies"),
 
+  /*
+   * Backend minimum is 2 characters.
+   */
   category: z
     .string()
     .trim()
-    .min(1, "Project category is required")
+    .min(2, "Category must be at least 2 characters")
     .max(50, "Category cannot exceed 50 characters"),
 
+  /*
+   * Primary image.
+   *
+   * New project:
+   * File | null
+   *
+   * Edit project:
+   * Existing Cloudinary URL | File | null
+   */
   image: z.union([z.instanceof(File), z.string(), z.null()]).optional(),
 
+  /*
+   * Optional external URLs.
+   */
   githubUrl: optionalUrlSchema,
 
   liveUrl: optionalUrlSchema,
 
+  /*
+   * Featured status.
+   */
   featured: z.boolean(),
 
+  /*
+   * Backend enum.
+   */
   status: z.enum(["completed", "in-progress", "planned"], {
     message: "Please select a valid project status",
   }),
 
+  /*
+   * Backend requires a non-negative integer.
+   */
   order: z
-    .number()
-    .int("Order must be a whole number")
+    .number({
+      message: "Order must be a number",
+    })
+    .int("Order must be an integer")
     .min(0, "Order cannot be negative"),
 });
+
+/*
+|--------------------------------------------------------------------------
+| Default values
+|--------------------------------------------------------------------------
+*/
+
+const defaultValues = {
+  title: "",
+  shortDescription: "",
+  description: "",
+  technologies: [],
+  category: "",
+  image: null,
+  githubUrl: "",
+  liveUrl: "",
+  featured: false,
+  status: "completed",
+  order: 0,
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -104,37 +196,26 @@ const projectSchema = z.object({
 */
 
 const ProjectForm = ({
-  initialValues,
+  initialValues = null,
   onSubmit,
   isSubmitting = false,
-  submitLabel = "Save project",
+  submitLabel = "Create project",
 }) => {
   const form = useForm({
     resolver: zodResolver(projectSchema),
-
-    defaultValues: {
-      title: "",
-      shortDescription: "",
-      description: "",
-      technologies: [],
-      category: "",
-      image: null,
-      githubUrl: "",
-      liveUrl: "",
-      featured: false,
-      status: "completed",
-      order: 0,
-    },
+    defaultValues,
+    mode: "onSubmit",
   });
 
   /*
   |--------------------------------------------------------------------------
-  | Populate form when editing an existing project
+  | Populate form when editing
   |--------------------------------------------------------------------------
   */
 
   useEffect(() => {
     if (!initialValues) {
+      form.reset(defaultValues);
       return;
     }
 
@@ -180,12 +261,41 @@ const ProjectForm = ({
   */
 
   const handleSubmit = (values) => {
-    onSubmit?.(values);
+    /*
+     * Normalize values before sending them to the page/controller.
+     */
+    const normalizedValues = {
+      ...values,
+
+      title: values.title.trim(),
+
+      shortDescription: values.shortDescription.trim(),
+
+      description: values.description.trim(),
+
+      technologies: values.technologies.map((technology) => technology.trim()),
+
+      category: values.category.trim(),
+
+      /*
+       * Convert empty optional URLs to null.
+       * This matches backend optional URL normalization.
+       */
+      githubUrl: values.githubUrl?.trim() || null,
+
+      liveUrl: values.liveUrl?.trim() || null,
+
+      featured: Boolean(values.featured),
+
+      order: Number(values.order),
+    };
+
+    onSubmit?.(normalizedValues);
   };
 
   /*
   |--------------------------------------------------------------------------
-  | Validation error handling
+  | Invalid form handler
   |--------------------------------------------------------------------------
   */
 
@@ -212,7 +322,10 @@ const ProjectForm = ({
         onSubmit={form.handleSubmit(handleSubmit, handleInvalid)}
         className="space-y-8"
       >
-        {/* Basic Information */}
+        {/* -----------------------------------------------------------------
+            Basic Information
+        ------------------------------------------------------------------ */}
+
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
             <h2 className="text-lg font-semibold">Basic information</h2>
@@ -224,6 +337,7 @@ const ProjectForm = ({
 
           <div className="grid gap-6">
             {/* Title */}
+
             <FormField
               control={form.control}
               name="title"
@@ -234,6 +348,7 @@ const ProjectForm = ({
                   <FormControl>
                     <Input
                       placeholder="Portfolio Management System"
+                      maxLength={100}
                       disabled={isSubmitting}
                       {...field}
                     />
@@ -249,6 +364,7 @@ const ProjectForm = ({
             />
 
             {/* Short Description */}
+
             <FormField
               control={form.control}
               name="shortDescription"
@@ -259,6 +375,7 @@ const ProjectForm = ({
                   <FormControl>
                     <Textarea
                       placeholder="A modern full-stack portfolio platform..."
+                      maxLength={250}
                       className="min-h-24 resize-y"
                       disabled={isSubmitting}
                       {...field}
@@ -266,7 +383,7 @@ const ProjectForm = ({
                   </FormControl>
 
                   <FormDescription>
-                    Keep this short. It is used in project cards and previews.
+                    10–250 characters. Used in project cards and previews.
                   </FormDescription>
 
                   <FormMessage />
@@ -275,6 +392,7 @@ const ProjectForm = ({
             />
 
             {/* Full Description */}
+
             <FormField
               control={form.control}
               name="description"
@@ -284,7 +402,8 @@ const ProjectForm = ({
 
                   <FormControl>
                     <Textarea
-                      placeholder="Describe the project, its purpose, architecture, and important features..."
+                      placeholder="Describe the project, its purpose, architecture, important features, and implementation..."
+                      maxLength={5000}
                       className="min-h-48 resize-y"
                       disabled={isSubmitting}
                       {...field}
@@ -292,8 +411,7 @@ const ProjectForm = ({
                   </FormControl>
 
                   <FormDescription>
-                    Detailed project information shown on the project details
-                    page.
+                    20–5000 characters. Shown on the project details page.
                   </FormDescription>
 
                   <FormMessage />
@@ -302,6 +420,7 @@ const ProjectForm = ({
             />
 
             {/* Category + Order */}
+
             <div className="grid gap-6 md:grid-cols-2">
               <FormField
                 control={form.control}
@@ -313,6 +432,7 @@ const ProjectForm = ({
                     <FormControl>
                       <Input
                         placeholder="Web Development"
+                        maxLength={50}
                         disabled={isSubmitting}
                         {...field}
                       />
@@ -334,6 +454,7 @@ const ProjectForm = ({
                       <Input
                         type="number"
                         min="0"
+                        step="1"
                         disabled={isSubmitting}
                         value={field.value}
                         onChange={(event) => {
@@ -356,7 +477,10 @@ const ProjectForm = ({
           </div>
         </section>
 
-        {/* Project Image */}
+        {/* -----------------------------------------------------------------
+            Project Image
+        ------------------------------------------------------------------ */}
+
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
             <h2 className="text-lg font-semibold">Project image</h2>
@@ -385,7 +509,10 @@ const ProjectForm = ({
           />
         </section>
 
-        {/* Technologies */}
+        {/* -----------------------------------------------------------------
+            Technologies
+        ------------------------------------------------------------------ */}
+
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
             <h2 className="text-lg font-semibold">Technologies</h2>
@@ -410,24 +537,33 @@ const ProjectForm = ({
                   />
                 </FormControl>
 
+                <FormDescription>
+                  Add 1–30 technologies. Each technology can contain up to 50
+                  characters.
+                </FormDescription>
+
                 <FormMessage />
               </FormItem>
             )}
           />
         </section>
 
-        {/* Project Links */}
+        {/* -----------------------------------------------------------------
+            Project Links
+        ------------------------------------------------------------------ */}
+
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
             <h2 className="text-lg font-semibold">Project links</h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Add external links visitors can use to explore the project.
+              Optional external links visitors can use to explore the project.
             </p>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
             {/* GitHub */}
+
             <FormField
               control={form.control}
               name="githubUrl"
@@ -439,6 +575,7 @@ const ProjectForm = ({
                     <Input
                       type="url"
                       placeholder="https://github.com/username/project"
+                      maxLength={2048}
                       disabled={isSubmitting}
                       {...field}
                     />
@@ -450,6 +587,7 @@ const ProjectForm = ({
             />
 
             {/* Live URL */}
+
             <FormField
               control={form.control}
               name="liveUrl"
@@ -461,6 +599,7 @@ const ProjectForm = ({
                     <Input
                       type="url"
                       placeholder="https://example.com"
+                      maxLength={2048}
                       disabled={isSubmitting}
                       {...field}
                     />
@@ -473,14 +612,17 @@ const ProjectForm = ({
           </div>
         </section>
 
-        {/* Featured Project */}
+        {/* -----------------------------------------------------------------
+            Featured
+        ------------------------------------------------------------------ */}
+
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
             <h2 className="text-lg font-semibold">Project visibility</h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              All projects are publicly available. Use featured status to
-              control whether this project appears in featured sections.
+              Projects are always public. Featured status controls whether this
+              project appears in featured sections.
             </p>
           </div>
 
@@ -509,11 +651,12 @@ const ProjectForm = ({
               </FormItem>
             )}
           />
-
-          <FormMessage />
         </section>
 
-        {/* Project State */}
+        {/* -----------------------------------------------------------------
+            Project State
+        ------------------------------------------------------------------ */}
+
         <section className="space-y-6 rounded-xl border bg-card p-6">
           <div>
             <h2 className="text-lg font-semibold">Project state</h2>
@@ -550,7 +693,10 @@ const ProjectForm = ({
           />
         </section>
 
-        {/* Actions */}
+        {/* -----------------------------------------------------------------
+            Actions
+        ------------------------------------------------------------------ */}
+
         <div className="flex flex-col-reverse gap-3 border-t pt-6 sm:flex-row sm:justify-end">
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Saving..." : submitLabel}

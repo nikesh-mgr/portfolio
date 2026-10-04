@@ -1,16 +1,4 @@
-import {
-  Award,
-  BriefcaseBusiness,
-  FileText,
-  GraduationCap,
-  LayoutDashboard,
-  LogOut,
-  Mail,
-  Menu,
-  Settings,
-  Sparkles,
-  UserRound,
-} from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import {
@@ -24,16 +12,29 @@ import {
 
 import { adminNavigation } from "./adminNavigation";
 
+const getAdminInitial = (name) => {
+  if (!name?.trim()) {
+    return "A";
+  }
+
+  return name.trim().charAt(0).toUpperCase();
+};
+
 const AdminMobileNav = ({ admin, onLogout }) => {
+  const adminInitial = getAdminInitial(admin?.name);
+
   return (
     <div className="lg:hidden">
       <Sheet>
         <SheetTrigger
           type="button"
           aria-label="Open admin navigation"
-          className="inline-flex size-10 items-center justify-center rounded-md border bg-background text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex size-10 items-center justify-center rounded-md border bg-background text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Menu className="size-5" />
+          <Menu
+            className="size-5"
+            aria-hidden="true"
+          />
         </SheetTrigger>
 
         <SheetContent
@@ -41,9 +42,13 @@ const AdminMobileNav = ({ admin, onLogout }) => {
           className="flex w-[280px] flex-col p-0 sm:w-[320px]"
         >
           <SheetHeader className="border-b px-5 py-5 text-left">
-            <SheetTitle className="text-lg">Admin Panel</SheetTitle>
+            <SheetTitle className="text-lg">
+              Portfolio CMS
+            </SheetTitle>
 
-            <SheetDescription>Manage your portfolio content.</SheetDescription>
+            <SheetDescription>
+              Manage your portfolio content.
+            </SheetDescription>
           </SheetHeader>
 
           <nav
@@ -60,15 +65,19 @@ const AdminMobileNav = ({ admin, onLogout }) => {
                     to={item.href}
                     className={({ isActive }) =>
                       [
-                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        "flex min-h-10 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                         isActive
-                          ? "bg-primary text-primary-foreground"
+                          ? "bg-primary text-primary-foreground shadow-xs"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground",
                       ].join(" ")
                     }
                   >
-                    <Icon className="size-4 shrink-0" />
+                    <Icon
+                      className="size-4 shrink-0"
+                      aria-hidden="true"
+                    />
+
                     <span>{item.title}</span>
                   </NavLink>
                 );
@@ -78,17 +87,20 @@ const AdminMobileNav = ({ admin, onLogout }) => {
 
           <div className="border-t p-4">
             <div className="mb-3 flex items-center gap-3 rounded-lg bg-muted/50 p-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                {admin?.name?.charAt(0)?.toUpperCase() || "A"}
+              <div
+                className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground"
+                aria-hidden="true"
+              >
+                {adminInitial}
               </div>
 
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">
-                  {admin?.name || "Admin"}
+                  {admin?.name || "Administrator"}
                 </p>
 
                 <p className="truncate text-xs text-muted-foreground">
-                  {admin?.email || "Administrator"}
+                  {admin?.email || ""}
                 </p>
               </div>
             </div>
@@ -96,9 +108,13 @@ const AdminMobileNav = ({ admin, onLogout }) => {
             <button
               type="button"
               onClick={onLogout}
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-md border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-h-10 w-full items-center justify-center gap-2 rounded-md border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <LogOut className="size-4" />
+              <LogOut
+                className="size-4"
+                aria-hidden="true"
+              />
+
               Logout
             </button>
           </div>

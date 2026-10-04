@@ -1,11 +1,12 @@
 import {
+  ArrowUpRight,
   BriefcaseBusiness,
   CalendarDays,
   CircleCheck,
   RefreshCw,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { getExperiences } from "@/api/experienceApi";
 
@@ -27,12 +28,14 @@ const formatDate = (date) => {
 };
 
 const ExperienceSection = ({ id = "experience" }) => {
+  const shouldReduceMotion = useReducedMotion();
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["experiences"],
     queryFn: getExperiences,
   });
 
-  const experiences = data?.experiences || data?.data || [];
+  const experiences = data?.experiences ?? [];
 
   const sortedExperiences = [...experiences].sort(
     (first, second) =>
@@ -40,51 +43,82 @@ const ExperienceSection = ({ id = "experience" }) => {
   );
 
   return (
-    <section id={id} className="scroll-mt-20 py-16 sm:py-20 lg:py-24">
+    <section
+      id={id}
+      aria-labelledby={`${id}-heading`}
+      className="scroll-mt-20 border-t py-20 sm:py-24 lg:py-28"
+    >
       <div className="container-page">
+        {/* Section heading */}
         <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.45 }}
-          className="max-w-2xl"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 20 }}
+          whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="grid gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-end"
         >
-          <div className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-            <BriefcaseBusiness className="size-3.5 text-primary" />
-            Experience
+          <div>
+            <div className="inline-flex items-center gap-2 border-b border-primary pb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+              <BriefcaseBusiness aria-hidden="true" className="size-3.5" />
+              Experience
+            </div>
+
+            <h2
+              id={`${id}-heading`}
+              className="mt-5 max-w-xl text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl"
+            >
+              Where experience became{" "}
+              <span className="text-muted-foreground">capability.</span>
+            </h2>
           </div>
 
-          <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl">
-            Where I've applied my skills.
-          </h2>
-
-          <p className="mt-4 text-base leading-7 text-muted-foreground">
-            Professional experience, responsibilities, and the work that has
-            shaped how I approach software development.
+          <p className="max-w-xl text-base leading-7 text-muted-foreground lg:justify-self-end lg:text-lg">
+            A timeline of roles, responsibilities, and environments that have
+            shaped how I build software and solve problems.
           </p>
         </motion.div>
 
+        {/* Loading */}
         {isLoading && (
-          <div className="relative mt-10 space-y-6 before:absolute before:bottom-0 before:left-3.5 before:top-0 before:w-px before:bg-border sm:space-y-8">
-            {[1, 2, 3].map((item) => (
-              <div key={item} className="relative pl-8 sm:pl-12">
-                <div className="absolute left-0 top-1 size-7 animate-pulse rounded-full border bg-muted" />
+          <div
+            aria-label="Loading experience"
+            aria-busy="true"
+            className="relative mt-12 space-y-8 pl-7 sm:pl-10"
+          >
+            <div
+              aria-hidden="true"
+              className="absolute bottom-0 left-2.5 top-0 w-px bg-border sm:left-3.5"
+            />
 
-                <div className="animate-pulse rounded-2xl border bg-card p-5 sm:p-7">
-                  <div className="h-4 w-28 rounded bg-muted" />
-                  <div className="mt-3 h-7 w-52 rounded bg-muted" />
-                  <div className="mt-4 h-4 w-36 rounded bg-muted" />
-                  <div className="mt-6 h-16 rounded bg-muted" />
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="relative animate-pulse">
+                <div
+                  aria-hidden="true"
+                  className="absolute -left-7 top-5 size-5 rounded-full border-4 border-background bg-muted sm:-left-10 sm:size-7"
+                />
+
+                <div className="rounded-2xl border bg-card p-5 sm:p-7">
+                  <div className="h-3 w-24 rounded bg-muted" />
+                  <div className="mt-4 h-7 w-56 rounded bg-muted" />
+                  <div className="mt-4 h-4 w-40 rounded bg-muted" />
+                  <div className="mt-7 h-20 rounded bg-muted" />
                 </div>
               </div>
             ))}
           </div>
         )}
 
+        {/* Error */}
         {isError && (
-          <div className="mt-10 rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center">
+          <div
+            role="alert"
+            className="mt-12 rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center sm:p-10"
+          >
             <div className="mx-auto flex size-12 items-center justify-center rounded-full border bg-background">
-              <BriefcaseBusiness className="size-5 text-destructive" />
+              <BriefcaseBusiness
+                aria-hidden="true"
+                className="size-5 text-destructive"
+              />
             </div>
 
             <h3 className="mt-4 text-lg font-semibold">
@@ -92,25 +126,29 @@ const ExperienceSection = ({ id = "experience" }) => {
             </h3>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              We couldn't retrieve the experience information right now. Please
-              try again.
+              Experience information is temporarily unavailable. Please try
+              again.
             </p>
 
             <button
               type="button"
               onClick={() => refetch()}
-              className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <RefreshCw className="size-4" />
+              <RefreshCw aria-hidden="true" className="size-4" />
               Try again
             </button>
           </div>
         )}
 
+        {/* Empty */}
         {!isLoading && !isError && sortedExperiences.length === 0 && (
-          <div className="mt-10 rounded-2xl border bg-card p-10 text-center">
+          <div className="mt-12 rounded-2xl border bg-card p-8 text-center sm:p-10">
             <div className="mx-auto flex size-12 items-center justify-center rounded-full border bg-muted">
-              <BriefcaseBusiness className="size-5 text-muted-foreground" />
+              <BriefcaseBusiness
+                aria-hidden="true"
+                className="size-5 text-muted-foreground"
+              />
             </div>
 
             <h3 className="mt-4 text-lg font-semibold">
@@ -124,84 +162,142 @@ const ExperienceSection = ({ id = "experience" }) => {
           </div>
         )}
 
+        {/* Timeline */}
         {!isLoading && !isError && sortedExperiences.length > 0 && (
-          <div className="relative mt-10 space-y-6 before:absolute before:bottom-0 before:left-3.5 before:top-0 before:w-px before:bg-border sm:space-y-8">
-            {sortedExperiences.map((experience, index) => {
-              const startDate = formatDate(experience.startDate);
-              const endDate = experience.current
-                ? "Present"
-                : formatDate(experience.endDate);
+          <div className="relative mt-12">
+            {/* Timeline rail */}
+            <div
+              aria-hidden="true"
+              className="absolute bottom-4 left-2.5 top-4 w-px bg-border sm:left-3.5"
+            />
 
-              const dateRange =
-                startDate && endDate
-                  ? `${startDate} — ${endDate}`
-                  : startDate || endDate;
+            <div className="space-y-8 sm:space-y-10">
+              {sortedExperiences.map((experience, index) => {
+                const startDate = formatDate(experience.startDate);
+                const endDate = experience.current
+                  ? "Present"
+                  : formatDate(experience.endDate);
 
-              return (
-                <motion.article
-                  key={
-                    experience._id ||
-                    experience.id ||
-                    `${experience.company}-${experience.position}-${index}`
-                  }
-                  initial={{ opacity: 0, y: 18 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{
-                    once: true,
-                    amount: 0.15,
-                  }}
-                  transition={{
-                    duration: 0.4,
-                    delay: index * 0.08,
-                  }}
-                  className="relative pl-8 sm:pl-12"
-                >
-                  <div className="absolute left-0 top-1 flex size-7 items-center justify-center rounded-full border bg-background">
-                    <BriefcaseBusiness className="size-3.5 text-primary" />
-                  </div>
+                const dateRange =
+                  startDate && endDate
+                    ? `${startDate} — ${endDate}`
+                    : startDate || endDate;
 
-                  <div className="rounded-2xl border bg-card p-5 sm:p-7">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        {experience.company && (
-                          <p className="text-sm font-medium text-primary">
-                            {experience.company}
-                          </p>
-                        )}
-
-                        {experience.position && (
-                          <h3 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
-                            {experience.position}
-                          </h3>
-                        )}
-                      </div>
-
-                      {experience.current && (
-                        <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
-                          <CircleCheck className="size-3.5" />
-                          Current
-                        </span>
-                      )}
+                return (
+                  <motion.article
+                    key={experience._id}
+                    initial={shouldReduceMotion ? false : { opacity: 0, x: 18 }}
+                    whileInView={
+                      shouldReduceMotion ? undefined : { opacity: 1, x: 0 }
+                    }
+                    viewport={{ once: true, amount: 0.2 }}
+                    transition={{
+                      duration: 0.5,
+                      delay: shouldReduceMotion ? 0 : index * 0.07,
+                      ease: "easeOut",
+                    }}
+                    className="group relative pl-8 sm:pl-12"
+                  >
+                    {/* Timeline node */}
+                    <div
+                      aria-hidden="true"
+                      className="absolute left-0 top-5 flex size-5 items-center justify-center rounded-full border-2 border-background bg-muted-foreground ring-1 ring-border transition-all duration-300 group-hover:bg-primary group-hover:ring-primary/30 sm:size-7"
+                    >
+                      <span className="size-1.5 rounded-full bg-background sm:size-2" />
                     </div>
 
-                    {dateRange && (
-                      <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                        <CalendarDays className="size-4 shrink-0" />
-                        <span>{dateRange}</span>
-                      </div>
-                    )}
+                    <div className="relative overflow-hidden rounded-2xl border bg-card transition-colors duration-300 hover:border-primary/30">
+                      {/* Current accent */}
+                      {experience.current && (
+                        <div
+                          aria-hidden="true"
+                          className="absolute inset-y-0 left-0 w-0.5 bg-primary"
+                        />
+                      )}
 
-                    {experience.description && (
-                      <div className="mt-5 border-t pt-5">
-                        <p className="whitespace-pre-line text-sm leading-7 text-muted-foreground sm:text-base">
-                          {experience.description}
-                        </p>
+                      <div className="p-5 sm:p-7 lg:p-8">
+                        {/* Top metadata */}
+                        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="flex min-w-0 items-start gap-4">
+                            {experience.companyLogo?.url ? (
+                              <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-background sm:size-12">
+                                <img
+                                  src={experience.companyLogo.url}
+                                  alt={`${experience.company || "Company"} logo`}
+                                  className="size-full object-contain p-1.5"
+                                  loading={index === 0 ? "eager" : "lazy"}
+                                  decoding="async"
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                aria-hidden="true"
+                                className="flex size-11 shrink-0 items-center justify-center rounded-xl border bg-muted/50 sm:size-12"
+                              >
+                                <BriefcaseBusiness className="size-4 text-muted-foreground" />
+                              </div>
+                            )}
+
+                            <div className="min-w-0">
+                              {experience.company && (
+                                <p className="truncate text-sm font-semibold text-primary">
+                                  {experience.company}
+                                </p>
+                              )}
+
+                              {experience.position && (
+                                <h3 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
+                                  {experience.position}
+                                </h3>
+                              )}
+                            </div>
+                          </div>
+
+                          {experience.current && (
+                            <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary">
+                              <CircleCheck
+                                aria-hidden="true"
+                                className="size-3.5"
+                              />
+                              Current role
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Date */}
+                        {dateRange && (
+                          <div className="mt-5 inline-flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                            <CalendarDays
+                              aria-hidden="true"
+                              className="size-3.5"
+                            />
+                            <span>{dateRange}</span>
+                          </div>
+                        )}
+
+                        {/* Description */}
+                        {experience.description && (
+                          <div className="mt-6 border-t pt-6">
+                            <p className="max-w-3xl whitespace-pre-line text-sm leading-7 text-muted-foreground sm:text-base">
+                              {experience.description}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Subtle visual cue */}
+                        <div
+                          aria-hidden="true"
+                          className="mt-6 flex items-center gap-2 text-xs font-medium text-muted-foreground/60 transition-colors duration-300 group-hover:text-primary/70"
+                        >
+                          <span className="h-px w-8 bg-border transition-all duration-300 group-hover:w-12 group-hover:bg-primary/40" />
+                          <ArrowUpRight className="size-3.5" />
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </motion.article>
-              );
-            })}
+                    </div>
+                  </motion.article>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

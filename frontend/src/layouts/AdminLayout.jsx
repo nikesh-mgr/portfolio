@@ -8,32 +8,37 @@ import useAuth from "@/hooks/useAuth";
 
 const AdminLayout = () => {
   const navigate = useNavigate();
-
   const { admin, logout } = useAuth();
 
   const handleLogout = async () => {
     try {
       await logout();
 
-      toast.success("Logged out successfully");
+      toast.success("You've been signed out successfully.");
 
       navigate("/auth/login", {
         replace: true,
       });
     } catch {
-      toast.error("Unable to logout. Please try again.");
+      toast.error("We couldn't sign you out. Please try again.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <div className="flex min-h-screen">
-        <AdminSidebar admin={admin} onLogout={handleLogout} />
+    <div className="min-h-dvh bg-muted/30">
+      <div className="flex min-h-dvh">
+        <AdminSidebar
+          admin={admin}
+          onLogout={handleLogout}
+        />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <AdminHeader admin={admin} onLogout={handleLogout} />
+          <AdminHeader
+            admin={admin}
+            onLogout={handleLogout}
+          />
 
-          <main className="flex-1">
+          <main className="min-w-0 flex-1">
             <div className="container-page py-6 sm:py-8">
               <Outlet />
             </div>

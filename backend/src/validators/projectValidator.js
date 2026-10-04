@@ -2,12 +2,8 @@ import { z } from "zod";
 
 /*
 |--------------------------------------------------------------------------
-| HTTP/HTTPS URL validation
+| HTTP / HTTPS URL validation
 |--------------------------------------------------------------------------
-|
-| Project links must use HTTP or HTTPS.
-| Protocols such as javascript:, data:, and file: are rejected.
-|
 */
 
 const urlSchema = z
@@ -32,12 +28,12 @@ const urlSchema = z
 
 /*
 |--------------------------------------------------------------------------
-| Optional URL normalization
+| Optional URL
 |--------------------------------------------------------------------------
 |
-| Multipart/form-data may send an empty string for optional fields.
-| Convert empty values to null so the service/model receives a
-| predictable value.
+| FormData may omit optional URLs completely.
+|
+| Empty string is converted to null.
 |
 */
 
@@ -54,35 +50,40 @@ const optionalUrlSchema = z.preprocess((value) => {
 | Boolean normalization
 |--------------------------------------------------------------------------
 |
-| FormData sends boolean values as strings.
+| FormData:
 |
 | "true"  -> true
 | "false" -> false
 |
 */
 
-const booleanSchema = z.preprocess((value) => {
-  if (typeof value === "boolean") {
+const booleanSchema = z.preprocess(
+  (value) => {
+    if (typeof value === "boolean") {
+      return value;
+    }
+
+    if (value === "true") {
+      return true;
+    }
+
+    if (value === "false") {
+      return false;
+    }
+
     return value;
-  }
-
-  if (value === "true") {
-    return true;
-  }
-
-  if (value === "false") {
-    return false;
-  }
-
-  return value;
-}, z.boolean());
+  },
+  z.boolean({
+    error: "Featured must be true or false",
+  })
+);
 
 /*
 |--------------------------------------------------------------------------
-| Order normalization
+| Number normalization
 |--------------------------------------------------------------------------
 |
-| FormData sends numeric values as strings.
+| FormData sends numbers as strings.
 |
 | "0"  -> 0
 | "10" -> 10
@@ -114,20 +115,20 @@ const orderSchema = z.preprocess(
 
 /*
 |--------------------------------------------------------------------------
-| Technologies normalization
+| Technologies
 |--------------------------------------------------------------------------
 |
-| Multipart/form-data can produce either:
+| Multer produces:
 |
 | technologies=React
 |
-| or:
+| OR:
 |
 | technologies=React
 | technologies=Node.js
 | technologies=MongoDB
 |
-| Normalize both forms to an array before validation.
+| Normalize both into an array.
 |
 */
 
@@ -159,10 +160,6 @@ const technologiesSchema = z.preprocess(
 |--------------------------------------------------------------------------
 | Gallery image URL validation
 |--------------------------------------------------------------------------
-|
-| Gallery images are normally uploaded through the dedicated
-| gallery endpoint.
-|
 */
 
 const imagesSchema = z
@@ -171,16 +168,18 @@ const imagesSchema = z
 
 /*
 |--------------------------------------------------------------------------
-| Shared project fields
+| Project fields
 |--------------------------------------------------------------------------
 |
 | IMPORTANT:
-| Projects are always published.
 |
-| There is intentionally NO `published` field.
+| There is NO:
+| - published
 |
-| The primary image file is handled separately by
-| Multer/Cloudinary.
+| Project visibility is represented by:
+| - featured
+|
+| All projects are publicly available.
 |
 */
 
@@ -212,9 +211,9 @@ const projectFields = {
     .max(50, "Category cannot exceed 50 characters"),
 
   /*
-   * Internal/non-multipart image URL support.
+   * Image URL is only used if a URL is explicitly supplied.
    *
-   * Normal frontend create/update requests use Multer.
+   * Normal create/update requests upload the image using Multer.
    */
 
   image: z
@@ -231,21 +230,11 @@ const projectFields = {
 
   liveUrl: optionalUrlSchema.optional(),
 
-  /*
-   * Featured is independent from publication.
-   *
-   * A project can be:
-   * - featured
-   * - not featured
-   *
-   * But it is always published.
-   */
-
   featured: booleanSchema.optional(),
 
   status: z
     .enum(["completed", "in-progress", "planned"], {
-      message: "Status must be completed, in-progress, or planned",
+      error: "Status must be completed, in-progress, or planned",
     })
     .optional(),
 
@@ -254,36 +243,24 @@ const projectFields = {
 
 /*
 |--------------------------------------------------------------------------
-| Create project validation
+| Create project
 |--------------------------------------------------------------------------
-|
-| Strict validation prevents unexpected fields from reaching
-| the controller/service layer.
-|
 */
 
 export const createProjectSchema = z.object(projectFields).strict();
 
 /*
 |--------------------------------------------------------------------------
-| Update project validation
+| Update project
 |--------------------------------------------------------------------------
-|
-| Every field is optional for PATCH requests, but supplied fields
-| must still satisfy the original validation rules.
-|
 */
 
 export const updateProjectSchema = createProjectSchema.partial();
 
 /*
 |--------------------------------------------------------------------------
-| Remove project gallery image validation
+| Remove project gallery image
 |--------------------------------------------------------------------------
-|
-| Gallery deletion is performed using the Cloudinary publicId,
-| not the image URL.
-|
 */
 
 export const removeProjectImageSchema = z

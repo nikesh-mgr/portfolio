@@ -14,7 +14,6 @@ const ProjectFilters = ({ filters, onFiltersChange, onClear }) => {
   const currentFilters = {
     search: filters?.search ?? "",
     status: filters?.status ?? "all",
-    published: filters?.published ?? "all",
     featured: filters?.featured ?? "all",
   };
 
@@ -28,30 +27,31 @@ const ProjectFilters = ({ filters, onFiltersChange, onClear }) => {
   const hasActiveFilters =
     currentFilters.search.trim() !== "" ||
     currentFilters.status !== "all" ||
-    currentFilters.published !== "all" ||
     currentFilters.featured !== "all";
 
   return (
     <div className="rounded-xl border bg-card p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_180px_auto]">
-        {/* Search */}
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_200px_200px_auto]">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
 
           <Input
             value={currentFilters.search}
             onChange={(event) => updateFilter("search", event.target.value)}
             placeholder="Search projects..."
+            aria-label="Search projects"
             className="pl-9"
           />
         </div>
 
-        {/* Status */}
         <Select
           value={currentFilters.status}
           onValueChange={(value) => updateFilter("status", value)}
         >
-          <SelectTrigger>
+          <SelectTrigger aria-label="Filter by project status">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
 
@@ -63,28 +63,11 @@ const ProjectFilters = ({ filters, onFiltersChange, onClear }) => {
           </SelectContent>
         </Select>
 
-        {/* Visibility */}
-        <Select
-          value={currentFilters.published}
-          onValueChange={(value) => updateFilter("published", value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Visibility" />
-          </SelectTrigger>
-
-          <SelectContent>
-            <SelectItem value="all">All visibility</SelectItem>
-            <SelectItem value="published">Published</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Featured */}
         <Select
           value={currentFilters.featured}
           onValueChange={(value) => updateFilter("featured", value)}
         >
-          <SelectTrigger>
+          <SelectTrigger aria-label="Filter by featured status">
             <SelectValue placeholder="Featured" />
           </SelectTrigger>
 
@@ -95,14 +78,13 @@ const ProjectFilters = ({ filters, onFiltersChange, onClear }) => {
           </SelectContent>
         </Select>
 
-        {/* Clear */}
         <Button
           type="button"
           variant="outline"
           onClick={onClear}
           disabled={!hasActiveFilters}
         >
-          <RotateCcw className="size-4" />
+          <RotateCcw className="size-4" aria-hidden="true" />
           Clear
         </Button>
       </div>

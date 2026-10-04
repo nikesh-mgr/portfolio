@@ -13,19 +13,12 @@ import {
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import BlogForm from "@/components/admin/blogs/BlogForm";
 import { Button } from "@/components/ui/button";
+import getApiErrorMessage from "@/utils/ApiErrorhandler";
 
 const BlogEdit = () => {
   const { id } = useParams();
-
   const navigate = useNavigate();
-
   const queryClient = useQueryClient();
-
-  /*
-  |--------------------------------------------------------------------------
-  | Load blog
-  |--------------------------------------------------------------------------
-  */
 
   const blogQuery = useQuery({
     queryKey: ["blog", id],
@@ -33,32 +26,14 @@ const BlogEdit = () => {
     enabled: Boolean(id),
   });
 
-  /*
-  |--------------------------------------------------------------------------
-  | Update blog mutation
-  |--------------------------------------------------------------------------
-  */
-
   const updateMutation = useMutation({
     mutationFn: async ({ values, coverImage }) => {
-      /*
-      |--------------------------------------------------------------------------
-      | Convert comma-separated tags into an array
-      |--------------------------------------------------------------------------
-      */
-
       const tags = values.tags
         ? values.tags
             .split(",")
             .map((tag) => tag.trim())
             .filter(Boolean)
         : [];
-
-      /*
-      |--------------------------------------------------------------------------
-      | Convert comma-separated SEO keywords into an array
-      |--------------------------------------------------------------------------
-      */
 
       const keywords = values.keywords
         ? values.keywords
@@ -67,133 +42,63 @@ const BlogEdit = () => {
             .filter(Boolean)
         : [];
 
-      /*
-      |--------------------------------------------------------------------------
-      | Build update payload
-      |--------------------------------------------------------------------------
-      |
-      | Slug is intentionally omitted.
-      | The backend owns slug generation.
-      |--------------------------------------------------------------------------
-      */
-
       const payload = {
         title: values.title.trim(),
-
         excerpt: values.excerpt.trim(),
-
         content: values.content.trim(),
-
         category: values.category.trim() || null,
-
         tags,
-
         published: Boolean(values.published),
-
         readingTime: Number(values.readingTime),
-
         seo: {
           metaTitle: values.metaTitle.trim() || null,
-
           metaDescription: values.metaDescription.trim() || null,
-
           keywords,
-
           canonicalUrl: values.canonicalUrl.trim() || null,
         },
       };
-
-      /*
-      |--------------------------------------------------------------------------
-      | STEP 1: Update normal blog fields
-      |--------------------------------------------------------------------------
-      */
 
       const response = await updateBlog({
         id,
         data: payload,
       });
 
-      /*
-      |--------------------------------------------------------------------------
-      | STEP 2: Upload new cover image
-      |--------------------------------------------------------------------------
-      |
-      | The backend replaces the existing Cloudinary image safely.
-      |--------------------------------------------------------------------------
-      */
-
       if (coverImage?.file instanceof File) {
         await uploadBlogCoverImage(id, coverImage.file);
-      }
-
-      /*
-      |--------------------------------------------------------------------------
-      | STEP 3: Remove existing cover image
-      |--------------------------------------------------------------------------
-      |
-      | Only execute this when the user requested removal and did not
-      | select a replacement image.
-      |--------------------------------------------------------------------------
-      */
-
-      if (coverImage?.remove === true && !coverImage?.file) {
+      } else if (coverImage?.remove === true) {
         await deleteBlogCoverImage(id);
       }
 
       return response;
     },
 
-    /*
-    |--------------------------------------------------------------------------
-    | Success
-    |--------------------------------------------------------------------------
-    */
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["blogs"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["blog", id],
+        }),
+      ]);
 
-    onSuccess: async (response) => {
-      await queryClient.invalidateQueries({
-        queryKey: ["blogs"],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["blog", id],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["publishedBlogs"],
-      });
-
-      toast.success(response?.message || "Blog updated successfully.");
-
+      toast.success("Blog updated successfully.");
       navigate("/admin/blogs");
     },
 
-    /*
-    |--------------------------------------------------------------------------
-    | Error
-    |--------------------------------------------------------------------------
-    */
-
     onError: (error) => {
-      const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.message ||
-        "Failed to update blog.";
-
-      toast.error(message);
+      toast.error(
+        getApiErrorMessage(
+          error,
+          "The blog could not be updated. Please try again.",
+        ),
+      );
     },
   });
 
-  /*
-  |--------------------------------------------------------------------------
-  | Submit
-  |--------------------------------------------------------------------------
-  */
-
   const handleSubmit = (values, coverImage) => {
     if (!id) {
-      toast.error("Invalid blog ID.");
+      toast.error("The blog ID is missing.");
       return;
     }
 
@@ -203,12 +108,6 @@ const BlogEdit = () => {
     });
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Loading
-  |--------------------------------------------------------------------------
-  */
-
   if (blogQuery.isLoading) {
     return (
       <div className="space-y-6">
@@ -217,18 +116,17 @@ const BlogEdit = () => {
           description="Loading blog information..."
         />
 
-        <div className="flex min-h-[400px] items-center justify-center rounded-xl border bg-card">
-          <p className="text-sm text-muted-foreground">Loading blog...</p>
+        <div
+          className="flex min-h-[400px] items-center justify-center rounded-xl border bg-card"
+          aria-busy="true"
+        >
+          <p className="text-sm text-muted-foreground">
+            Loading blog...
+          </p>
         </div>
       </div>
     );
   }
-
-  /*
-  |--------------------------------------------------------------------------
-  | Error
-  |--------------------------------------------------------------------------
-  */
 
   if (blogQuery.isError) {
     return (
@@ -238,9 +136,15 @@ const BlogEdit = () => {
           description="Unable to load this blog."
         />
 
-        <div className="rounded-xl border bg-card p-8 text-center">
+        <div
+          className="rounded-xl border bg-card p-8 text-center"
+          role="alert"
+        >
           <p className="text-sm font-medium text-destructive">
-            {blogQuery.error?.response?.data?.message || "Failed to load blog."}
+            {getApiErrorMessage(
+              blogQuery.error,
+              "The blog could not be loaded.",
+            )}
           </p>
 
           <div className="mt-4 flex justify-center gap-3">
@@ -248,8 +152,9 @@ const BlogEdit = () => {
               type="button"
               variant="outline"
               onClick={() => blogQuery.refetch()}
+              disabled={blogQuery.isFetching}
             >
-              Try again
+              {blogQuery.isFetching ? "Retrying..." : "Try again"}
             </Button>
 
             <Button
@@ -257,7 +162,7 @@ const BlogEdit = () => {
               variant="outline"
               onClick={() => navigate("/admin/blogs")}
             >
-              <ArrowLeft className="size-4" />
+              <ArrowLeft className="size-4" aria-hidden="true" />
               Back to blogs
             </Button>
           </div>
@@ -266,19 +171,7 @@ const BlogEdit = () => {
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Get blog from API response
-  |--------------------------------------------------------------------------
-  */
-
-  const blog = blogQuery.data?.blog || blogQuery.data?.data || blogQuery.data;
-
-  /*
-  |--------------------------------------------------------------------------
-  | Blog not found
-  |--------------------------------------------------------------------------
-  */
+  const blog = blogQuery.data?.blog;
 
   if (!blog) {
     return (
@@ -289,7 +182,9 @@ const BlogEdit = () => {
         />
 
         <div className="rounded-xl border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">Blog not found.</p>
+          <p className="text-sm text-muted-foreground">
+            Blog not found.
+          </p>
 
           <Button
             type="button"
@@ -297,7 +192,7 @@ const BlogEdit = () => {
             className="mt-4"
             onClick={() => navigate("/admin/blogs")}
           >
-            <ArrowLeft className="size-4" />
+            <ArrowLeft className="size-4" aria-hidden="true" />
             Back to blogs
           </Button>
         </div>
@@ -305,56 +200,25 @@ const BlogEdit = () => {
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Normalize API data for BlogForm
-  |--------------------------------------------------------------------------
-  |
-  | Backend arrays are converted into comma-separated strings because
-  | the form uses simple text inputs for tags and SEO keywords.
-  |--------------------------------------------------------------------------
-  */
-
   const formInitialValues = {
     title: blog.title || "",
-
     excerpt: blog.excerpt || "",
-
     content: blog.content || "",
-
     category: blog.category || "",
-
-    tags: Array.isArray(blog.tags) ? blog.tags.join(", ") : blog.tags || "",
-
+    tags: Array.isArray(blog.tags) ? blog.tags.join(", ") : "",
     published: Boolean(blog.published),
-
     readingTime: Number(blog.readingTime) || 1,
-
     metaTitle: blog.seo?.metaTitle || "",
-
     metaDescription: blog.seo?.metaDescription || "",
-
     keywords: Array.isArray(blog.seo?.keywords)
       ? blog.seo.keywords.join(", ")
-      : blog.seo?.keywords || "",
-
+      : "",
     canonicalUrl: blog.seo?.canonicalUrl || "",
-
-    /*
-     * BlogForm uses this only to initialize the existing image.
-     * It is NOT sent back in the normal update payload.
-     */
     coverImage: blog.coverImage || {
       url: null,
       publicId: null,
     },
   };
-
-  /*
-  |--------------------------------------------------------------------------
-  | Page
-  |--------------------------------------------------------------------------
-  */
 
   return (
     <div className="container mx-auto max-w-5xl py-8">
@@ -367,7 +231,7 @@ const BlogEdit = () => {
             variant="outline"
             onClick={() => navigate("/admin/blogs")}
           >
-            <ArrowLeft className="size-4" />
+            <ArrowLeft className="size-4" aria-hidden="true" />
             Back to blogs
           </Button>
         }

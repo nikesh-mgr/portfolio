@@ -7,21 +7,35 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
   return (
     <div className="hidden overflow-x-auto rounded-xl border bg-card lg:block">
       <table className="w-full text-sm">
+        <caption className="sr-only">Blog management table</caption>
+
         <thead>
           <tr className="border-b bg-muted/30 text-left">
-            <th className="px-5 py-3 font-medium text-muted-foreground">
+            <th
+              scope="col"
+              className="px-5 py-3 font-medium text-muted-foreground"
+            >
               Blog
             </th>
 
-            <th className="px-5 py-3 font-medium text-muted-foreground">
+            <th
+              scope="col"
+              className="px-5 py-3 font-medium text-muted-foreground"
+            >
               Category
             </th>
 
-            <th className="px-5 py-3 font-medium text-muted-foreground">
+            <th
+              scope="col"
+              className="px-5 py-3 font-medium text-muted-foreground"
+            >
               Status
             </th>
 
-            <th className="px-5 py-3 text-right font-medium text-muted-foreground">
+            <th
+              scope="col"
+              className="px-5 py-3 text-right font-medium text-muted-foreground"
+            >
               Actions
             </th>
           </tr>
@@ -29,15 +43,16 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
 
         <tbody className="divide-y">
           {blogs.map((blog) => {
-            const blogId = blog?._id || blog?.id;
-            const blogSlug = blog?.slug || null;
+            const blogId = blog?._id;
+            const blogSlug = blog?.slug;
             const imageUrl = blog?.coverImage?.url || null;
-
+            const title = blog?.title || "Untitled blog";
             const isDeleting = deletingBlogId === blogId;
 
             return (
               <tr
-                key={blogId || blogSlug}
+                key={blogId}
+                aria-busy={isDeleting}
                 className="transition-colors hover:bg-muted/30"
               >
                 {/* Blog */}
@@ -47,8 +62,9 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                       {imageUrl ? (
                         <img
                           src={imageUrl}
-                          alt={blog?.title || "Blog cover"}
+                          alt={`${title} cover`}
                           loading="lazy"
+                          decoding="async"
                           className="size-full object-cover"
                         />
                       ) : (
@@ -59,9 +75,7 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                     </div>
 
                     <div className="min-w-0">
-                      <p className="truncate font-medium">
-                        {blog?.title || "Untitled blog"}
-                      </p>
+                      <p className="truncate font-medium">{title}</p>
 
                       <p className="mt-1 truncate text-xs text-muted-foreground">
                         {blog?.excerpt || "No description"}
@@ -81,13 +95,13 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                 <td className="px-5 py-4">
                   {blog?.published ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
-                      <Eye className="size-3.5" />
-                      Published
+                      <Eye className="size-3.5" aria-hidden="true" />
+                      <span>Published</span>
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                      <EyeOff className="size-3.5" />
-                      Draft
+                      <EyeOff className="size-3.5" aria-hidden="true" />
+                      <span>Draft</span>
                     </span>
                   )}
                 </td>
@@ -95,31 +109,28 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                 {/* Actions */}
                 <td className="px-5 py-4">
                   <div className="flex justify-end gap-1">
-                    {/* View */}
                     {blogSlug && (
                       <Link
                         to={`/blog/${blogSlug}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={`View ${blog?.title || "blog"}`}
-                        className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        aria-label={`View ${title}`}
+                        className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
-                        <ExternalLink className="size-4" />
+                        <ExternalLink className="size-4" aria-hidden="true" />
                       </Link>
                     )}
 
-                    {/* Edit */}
                     {blogId && (
                       <Link
                         to={`/admin/blogs/${blogId}/edit`}
-                        aria-label={`Edit ${blog?.title || "blog"}`}
-                        className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        aria-label={`Edit ${title}`}
+                        className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
-                        <Pencil className="size-4" />
+                        <Pencil className="size-4" aria-hidden="true" />
                       </Link>
                     )}
 
-                    {/* Delete */}
                     {blogId && (
                       <Button
                         type="button"
@@ -127,13 +138,17 @@ const AdminBlogTable = ({ blogs = [], onDelete, deletingBlogId = null }) => {
                         size="icon"
                         onClick={() => onDelete?.(blog)}
                         disabled={isDeleting}
-                        aria-label={`Delete ${blog?.title || "blog"}`}
-                        className="text-muted-foreground hover:bg-muted hover:text-destructive"
+                        aria-label={`Delete ${title}`}
+                        aria-busy={isDeleting}
+                        className="text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:ring-ring"
                       >
                         {isDeleting ? (
-                          <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                          <span
+                            className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none"
+                            aria-hidden="true"
+                          />
                         ) : (
-                          <Trash2 className="size-4" />
+                          <Trash2 className="size-4" aria-hidden="true" />
                         )}
                       </Button>
                     )}
